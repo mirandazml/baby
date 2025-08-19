@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>宝宝体感温度</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; margin: 0; padding: 1rem; }
+    h2 { font-size: 1.5rem; text-align: center; color: #333; margin-bottom: 1rem; }
+    .container { max-width: 480px; margin: 0 auto; background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    label { display: block; margin-top: 0.8rem; font-size: 1rem; color: #555; }
+    input { padding: 0.5rem; width: 100%; font-size: 0.95rem; margin-top: 0.3rem; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; }
+    .results { display: flex; justify-content: space-between; margin-top: 1rem; }
+    .result-box { width: 48%; text-align: center; background: #fafafa; padding: 0.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    .result, .comfort, .sleep { margin-top: 0.3rem; font-size: 0.95rem; word-wrap: break-word; }
+    .result { font-weight: bold; }
+    .comfort { font-weight: bold; }
+    .sleep { color: #6a1b9a; font-weight: bold; }
+    @media (max-width: 480px) {
+      h2 { font-size: 1.3rem; }
+      label { font-size: 0.9rem; }
+      input { font-size: 0.9rem; }
+      .result, .comfort, .sleep { font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>宝宝体感温度</h2>
+
+    <label>温度 (°C): <input type="number" id="temp" placeholder="输入数字" oninput="calcAT()"></label>
+    <label>湿度 (%): <input type="number" id="rh" placeholder="输入数字" oninput="calcAT()"></label>
+    <label>绝对湿度 (g/m³): <input type="number" id="ah" placeholder="输入数字" oninput="calcAT()"></label>
+    <label>露点 (°C): <input type="number" id="dewPoint" placeholder="输入数字" oninput="calcAT()"></label>
+    <label>VPD (kPa): <input type="number" id="vpd" placeholder="输入数字" oninput="calcAT()"></label>
+
+    <div class="results">
+      <div class="result-box">
+        <div class="result" id="resultSilent"></div>
+        <div class="comfort" id="comfortSilent"></div>
+        <div class="sleep" id="sleepSilent"></div>
+      </div>
+      <div class="result-box">
+        <div class="result" id="resultAuto"></div>
+        <div class="comfort" id="comfortAuto"></div>
+        <div class="sleep" id="sleepAuto"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function calcAT() {
+      let T = parseFloat(document.getElementById('temp').value);
+      let RH = parseFloat(document.getElementById('rh').value);
+      let AH = parseFloat(document.getElementById('ah').value);
+      let Td = parseFloat(document.getElementById('dewPoint').value);
+      let VPD = parseFloat(document.getElementById('vpd').value);
+
+      if ([T,RH,AH,Td,VPD].some(isNaN)) {
+        ['resultSilent','resultAuto','comfortSilent','comfortAuto','sleepSilent','sleepAuto'].forEach(id=>document.getElementById(id).innerText='');
+        return;
+      }
+
+      let e = (RH / 100) * 6.105 * Math.exp((17.27 * T) / (237.7 + T));
+      let AT_silent = T + 0.33 * e - 0.70 * 0.2 - 4.00;
+      let AT_auto = T + 0.33 * e - 0.70 * 0.5 - 4.00;
+
+      function judge(AT,RH,AH,Td,VPD){
+        if(RH<40||AH<10||Td<10||VPD>1.6) return {text:'干凉 ☁️',sleep:'长袖+薄毯',color:'orange'};
+        if(RH>60||AH>18||Td>20||VPD<0.8) return {text:'闷热 🌥️',sleep:'短袖+薄睡袋',color:'blue'};
+        if(AT>=24&&AT<=26&&RH>=40&&RH<=60) return {text:'舒适 ☀️',sleep:'薄棉长袖或包屁衣',color:'green'};
+        if(AT<24) return {text:'略凉 ❄️',sleep:'长袖+薄毯',color:'orange'};
+        return {text:'偏热 ☀️',sleep:'短袖+薄睡袋',color:'red'};
+      }
+
+      let s=judge(AT_silent,RH,AH,Td,VPD);
+      let a=judge(AT_auto,RH,AH,Td,VPD);
+
+      document.getElementById('resultSilent').innerText=`静音: ${AT_silent.toFixed(1)}°C`;
+      document.getElementById('comfortSilent').innerText=s.text; document.getElementById('comfortSilent').style.color=s.color;
+      document.getElementById('sleepSilent').innerText='睡觉: '+s.sleep;
+
+      document.getElementById('resultAuto').innerText=`自动: ${AT_auto.toFixed(1)}°C`;
+      document.getElementById('comfortAuto').innerText=a.text; document.getElementById('comfortAuto').style.color=a.color;
+      document.getElementById('sleepAuto').innerText='睡觉: '+a.sleep;
+    }
+
+    // 初始清空输入
+    ['temp','rh','ah','dewPoint','vpd'].forEach(id=>document.getElementById(id).value='');
+  </script>
+</body>
+</html>

@@ -2,8 +2,9 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>宝宝体感温度</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
   <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; margin: 0; padding: 1rem; }
     h2 { font-size: 1.5rem; text-align: center; color: #333; margin-bottom: 1rem; }
@@ -16,23 +17,19 @@
     .result { font-weight: bold; }
     .comfort { font-weight: bold; }
     .sleep { color: #6a1b9a; font-weight: bold; }
-    @media (max-width: 480px) {
-      h2 { font-size: 1.3rem; }
-      label { font-size: 0.9rem; }
-      input { font-size: 0.9rem; }
-      .result, .comfort, .sleep { font-size: 0.9rem; }
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>宝宝体感温度</h2>
 
-    <label>温度 (°C): <input type="number" id="temp" placeholder="输入数字" oninput="calcAT()"></label>
-    <label>湿度 (%): <input type="number" id="rh" placeholder="输入数字" oninput="calcAT()"></label>
-    <label>绝对湿度 (g/m³): <input type="number" id="ah" placeholder="输入数字" oninput="calcAT()"></label>
-    <label>露点 (°C): <input type="number" id="dewPoint" placeholder="输入数字" oninput="calcAT()"></label>
-    <label>VPD (kPa): <input type="number" id="vpd" placeholder="输入数字" oninput="calcAT()"></label>
+    <input type="file" id="upload" accept="image/*">
+
+    <label>温度 (°C): <input type="number" id="temp" placeholder="输入数字"></label>
+    <label>湿度 (%): <input type="number" id="rh" placeholder="输入数字"></label>
+    <label>绝对湿度 (g/m³): <input type="number" id="ah" placeholder="输入数字"></label>
+    <label>露点 (°C): <input type="number" id="dewPoint" placeholder="输入数字"></label>
+    <label>VPD (kPa): <input type="number" id="vpd" placeholder="输入数字"></label>
 
     <div class="results">
       <div class="result-box">
@@ -49,6 +46,24 @@
   </div>
 
   <script>
+    document.getElementById('upload').addEventListener('change', function(e){
+      if(e.target.files.length === 0) return;
+      let file = e.target.files[0];
+      Tesseract.recognize(file, 'eng').then(({ data: { text } }) => {
+        let nums = text.match(/\d+(\.\d+)?/g);
+        if(nums && nums.length >= 5){
+          document.getElementById('temp').value = nums[0];
+          document.getElementById('rh').value = nums[1];
+          document.getElementById('ah').value = nums[2];
+          document.getElementById('dewPoint').value = nums[3];
+          document.getElementById('vpd').value = nums[4];
+          calcAT();
+        } else {
+          alert('未识别到足够的数字，请检查图片');
+        }
+      });
+    });
+
     function calcAT() {
       let T = parseFloat(document.getElementById('temp').value);
       let RH = parseFloat(document.getElementById('rh').value);
@@ -85,7 +100,6 @@
       document.getElementById('sleepAuto').innerText='睡觉: '+a.sleep;
     }
 
-    // 初始清空输入
     ['temp','rh','ah','dewPoint','vpd'].forEach(id=>document.getElementById(id).value='');
   </script>
 </body>

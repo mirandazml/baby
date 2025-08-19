@@ -23,7 +23,7 @@
   <div class="container">
     <h2>宝宝体感温度</h2>
 
-    <input type="file" id="upload" accept="image/*">
+    <label>上传图片 (支持本地选择): <input type="file" id="upload" accept="image/*"></label>
 
     <label>温度 (°C): <input type="number" id="temp" placeholder="输入数字"></label>
     <label>湿度 (%): <input type="number" id="rh" placeholder="输入数字"></label>
@@ -46,22 +46,27 @@
   </div>
 
   <script>
+    // 上传图片识别
     document.getElementById('upload').addEventListener('change', function(e){
       if(e.target.files.length === 0) return;
       let file = e.target.files[0];
-      Tesseract.recognize(file, 'eng').then(({ data: { text } }) => {
-        let nums = text.match(/\d+(\.\d+)?/g);
-        if(nums && nums.length >= 5){
-          document.getElementById('temp').value = nums[0];
-          document.getElementById('rh').value = nums[1];
-          document.getElementById('ah').value = nums[2];
-          document.getElementById('dewPoint').value = nums[3];
-          document.getElementById('vpd').value = nums[4];
-          calcAT();
-        } else {
-          alert('未识别到足够的数字，请检查图片');
-        }
-      });
+      let reader = new FileReader();
+      reader.onload = function(event){
+        Tesseract.recognize(event.target.result, 'eng').then(({ data: { text } }) => {
+          let nums = text.match(/\d+(\.\d+)?/g);
+          if(nums && nums.length >= 5){
+            document.getElementById('temp').value = nums[0];
+            document.getElementById('rh').value = nums[1];
+            document.getElementById('ah').value = nums[2];
+            document.getElementById('dewPoint').value = nums[3];
+            document.getElementById('vpd').value = nums[4];
+            calcAT();
+          } else {
+            alert('未识别到足够的数字，请检查图片');
+          }
+        });
+      };
+      reader.readAsDataURL(file);
     });
 
     function calcAT() {

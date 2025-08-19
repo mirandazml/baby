@@ -23,13 +23,13 @@
   <div class="container">
     <h2>宝宝体感温度与舒适度 🌈</h2>
 
-    <label>上传图片 (识别温湿度，方便快捷): <input type="file" id="upload" accept="image/*"></label>
+    <label>上传图片: <input type="file" id="upload" accept="image/*"></label>
 
     <label>温度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="temp" placeholder="请输入温度"></label>
     <label>相对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="rh" placeholder="请输入相对湿度"></label>
     <label>绝对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="ah" placeholder="请输入绝对湿度"></label>
     <label>露点温度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="dewPoint" placeholder="请输入露点温度"></label>
-    <label>饱和水汽压差(VPD): <input type="number" inputmode="decimal" pattern="[0-9]*" id="vpd" placeholder="请输入VPD"></label>
+    <label>饱和水汽压差 (VPD): <input type="number" inputmode="decimal" pattern="[0-9]*" id="vpd" placeholder="请输入VPD"></label>
 
     <div class="results">
       <div class="result-box">
@@ -46,7 +46,6 @@
   </div>
 
   <script>
-    // 图片上传识别
     document.getElementById('upload').addEventListener('change', function(e){
       if(e.target.files.length === 0) return;
       let file = e.target.files[0];
@@ -69,7 +68,6 @@
       reader.readAsDataURL(file);
     });
 
-    // 输入框变化自动计算
     ['temp','rh','ah','dewPoint','vpd'].forEach(id => {
       document.getElementById(id).addEventListener('input', calcAT);
     });
@@ -91,21 +89,28 @@
       let AT_auto = T + 0.33 * e - 0.70 * 0.5 - 4.00;
 
       function judge(AT,RH,AH,Td,VPD){
-        if(RH<40||AH<10||Td<10||VPD>1.6) return {text:'干凉 😟 建议增加衣物',sleep:'睡觉: 长袖+薄毯',color:'orange'};
-        if(RH>60||AH>18||Td>20||VPD<0.8) return {text:'闷热 😓 建议保持通风',sleep:'睡觉: 短袖+薄睡袋',color:'blue'};
-        if(AT>=24&&AT<=26&&RH>=40&&RH<=60) return {text:'舒适 😄 宝宝开心',sleep:'睡觉: 薄棉长袖或包屁衣',color:'green'};
-        if(AT<24) return {text:'略凉 🥶 注意保暖',sleep:'睡觉: 长袖+薄毯',color:'orange'};
-        return {text:'偏热 🥵 注意降温',sleep:'睡觉: 短袖+薄睡袋',color:'red'};
+        if(AT>=24 && AT<=26 && RH>=40 && RH<=60 && VPD>=0.8 && VPD<=1.6) {
+          return {text:'舒适 😄 宝宝开心', sleep:'睡觉: 薄棉长袖或包屁衣', color:'green'};
+        }
+        if(RH<40 || AH<10 || Td<10 || VPD>1.6) {
+          return {text:'干凉 😟 注意增加衣物', sleep:'睡觉: 长袖+薄毯', color:'orange'};
+        }
+        if(RH>60 || AH>18 || Td>20 || VPD<0.8) {
+          return {text:'闷热 😓 注意通风降温', sleep:'睡觉: 短袖+薄睡袋', color:'blue'};
+        }
+        if(AT<24) return {text:'略凉 🥶 注意保暖', sleep:'睡觉: 长袖+薄毯', color:'orange'};
+        if(AT>26) return {text:'偏热 🥵 注意降温', sleep:'睡觉: 短袖+薄睡袋', color:'red'};
+        return {text:'未知状态', sleep:'睡觉: 根据实际情况', color:'gray'};
       }
 
       let s=judge(AT_silent,RH,AH,Td,VPD);
       let a=judge(AT_auto,RH,AH,Td,VPD);
 
-      document.getElementById('resultSilent').innerText=`静音: ${AT_silent.toFixed(1)}°C`;
+      document.getElementById('resultSilent').innerText=`静音: ${AT_silent.toFixed(1)}`;
       document.getElementById('comfortSilent').innerText=s.text; document.getElementById('comfortSilent').style.color=s.color;
       document.getElementById('sleepSilent').innerText=s.sleep;
 
-      document.getElementById('resultAuto').innerText=`自动: ${AT_auto.toFixed(1)}°C`;
+      document.getElementById('resultAuto').innerText=`自动: ${AT_auto.toFixed(1)}`;
       document.getElementById('comfortAuto').innerText=a.text; document.getElementById('comfortAuto').style.color=a.color;
       document.getElementById('sleepAuto').innerText=a.sleep;
     }

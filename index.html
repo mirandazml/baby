@@ -29,7 +29,7 @@
     <label>相对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="rh" placeholder="请输入相对湿度"></label>
     <label>绝对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="ah" placeholder="请输入绝对湿度"></label>
     <label>露点温度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="dewPoint" placeholder="请输入露点温度"></label>
-    <label>饱和水汽压差(VPD）: <input type="number" inputmode="decimal" pattern="[0-9]*" id="vpd" placeholder="请输入VPD"></label>
+    <label>饱和水汽压差(VPD): <input type="number" inputmode="decimal" pattern="[0-9]*" id="vpd" placeholder="请输入VPD"></label>
 
     <div class="results">
       <div class="result-box">
@@ -46,6 +46,7 @@
   </div>
 
   <script>
+    // 图片上传识别
     document.getElementById('upload').addEventListener('change', function(e){
       if(e.target.files.length === 0) return;
       let file = e.target.files[0];
@@ -66,6 +67,11 @@
         });
       };
       reader.readAsDataURL(file);
+    });
+
+    // 输入框变化自动计算
+    ['temp','rh','ah','dewPoint','vpd'].forEach(id => {
+      document.getElementById(id).addEventListener('input', calcAT);
     });
 
     function calcAT() {
@@ -103,8 +109,6 @@
       document.getElementById('comfortAuto').innerText=a.text; document.getElementById('comfortAuto').style.color=a.color;
       document.getElementById('sleepAuto').innerText=a.sleep;
     }
-
-    ['temp','rh','ah','dewPoint','vpd'].forEach(id=>document.getElementById(id).value='');
   </script>
 </body>
 </html>

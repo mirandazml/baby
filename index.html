@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>宝宝体感温度 (专家评分系统版)</title>
+  <title>宝宝体感温度 (体验优化版)</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 1rem; }
@@ -72,26 +72,39 @@
     ['temp','rh','ah','dewPoint','vpd'].forEach(id => {
       document.getElementById(id).addEventListener('input', calcAT);
     });
-
+    
+    // --- 核心修改区域：优化calcAT函数 ---
     function calcAT() {
-      let T = parseFloat(document.getElementById('temp').value);
-      let RH = parseFloat(document.getElementById('rh').value);
-      let AH = parseFloat(document.getElementById('ah').value);
-      let Td = parseFloat(document.getElementById('dewPoint').value);
-      let VPD = parseFloat(document.getElementById('vpd').value);
+      const T = parseFloat(document.getElementById('temp').value);
+      const RH = parseFloat(document.getElementById('rh').value);
+      const AH = parseFloat(document.getElementById('ah').value);
+      const Td = parseFloat(document.getElementById('dewPoint').value);
+      const VPD = parseFloat(document.getElementById('vpd').value);
 
-      if ([T,RH,AH,Td,VPD].some(isNaN)) {
-        ['resultSilent','resultAuto','comfortSilent','comfortAuto','sleepSilent','sleepAuto'].forEach(id=>document.getElementById(id).innerText='');
-        return;
+      // 如果有任何一个输入框是空的或无效的，就显示提示信息，而不是清空
+      if ([T, RH, AH, Td, VPD].some(isNaN)) {
+        const placeholderMessage = '...';
+        const instructionMessage = '请输入全部五项数据';
+        const instructionColor = '#9e9e9e'; // 灰色
+
+        document.getElementById('resultSilent').innerText = placeholderMessage;
+        document.getElementById('comfortSilent').innerText = instructionMessage;
+        document.getElementById('comfortSilent').style.color = instructionColor;
+        document.getElementById('sleepSilent').innerText = '';
+
+        document.getElementById('resultAuto').innerText = placeholderMessage;
+        document.getElementById('comfortAuto').innerText = instructionMessage;
+        document.getElementById('comfortAuto').style.color = instructionColor;
+        document.getElementById('sleepAuto').innerText = '';
+        return; // 提前结束函数
       }
 
-      let e = (RH / 100) * 6.105 * Math.exp((17.27 * T) / (237.7 + T));
-      let AT_silent = T + 0.33 * e - 0.70 * 0.2 - 4.00;
-      let AT_auto = T + 0.33 * e - 0.70 * 0.5 - 4.00;
-      
-      // --- 核心修改区域：全新的评分系统 ---
+      // --- 只有当所有数据都有效时，才执行以下计算 ---
 
-      // 1. 单项评分函数
+      const e = (RH / 100) * 6.105 * Math.exp((17.27 * T) / (237.7 + T));
+      const AT_silent = T + 0.33 * e - 0.70 * 0.2 - 4.00;
+      const AT_auto = T + 0.33 * e - 0.70 * 0.5 - 4.00;
+      
       const getATScore = (at) => {
         if (at >= 24.0 && at <= 25.5) return { score: 2, text: '体感温和' };
         if (at >= 22.5 && at < 24.0) return { score: 1, text: '体感舒适' };
@@ -111,48 +124,45 @@
           return { score: 0, text: '' };
       };
 
-      // 2. 综合判断函数
       function judge(AT, RH, Td, VPD) {
         const atResult = getATScore(AT);
         const humidityResult = getHumidityScore(RH, Td, VPD);
 
         let finalText = atResult.text;
-        let finalColor = '#4caf50'; // 默认绿色
+        let finalColor = '#4caf50';
         let sleepSuggestion = '睡觉: 薄棉长袖/包屁衣';
 
-        // 组合描述
         if (humidityResult.score < 1 && humidityResult.text) {
-            if (atResult.score > 0) { // 温度舒适但湿度不佳
+            if (atResult.score > 0) {
                 finalText += ` 🙂 ${humidityResult.text.replace('且', '但')}`;
-            } else { // 温度和湿度都不佳
+            } else {
                 finalText += ` 😟 ${humidityResult.text}`;
             }
         } else if (humidityResult.score === 1 && atResult.score === 2) {
              finalText = '黄金范围 😄 温湿度完美';
         }
 
-        // 根据最差的指标决定颜色和核心建议
         const worstScore = Math.min(atResult.score, humidityResult.score);
 
         switch (worstScore) {
-          case 2: // 双优
-            finalColor = '#4caf50'; // 绿色
+          case 2:
+            finalColor = '#4caf50';
             sleepSuggestion = '睡觉: 薄棉长袖/包屁衣';
             break;
-          case 1: // 良好
-            finalColor = '#8bc34a'; // 浅绿
+          case 1:
+            finalColor = '#8bc34a';
              sleepSuggestion = (AT > 25.5) ? '睡觉: 短袖/薄款包屁衣' : '睡觉: 长袖+包屁衣';
             break;
-          case -1: // 轻微不适
-            finalColor = '#ffc107'; // 琥珀色
+          case -1:
+            finalColor = '#ffc107';
             if (atResult.score < 0 && humidityResult.score < 0) sleepSuggestion = '睡觉: 调整温湿度再睡';
             else if (atResult.text.includes('凉')) sleepSuggestion = '睡觉: 长袖+薄盖毯';
             else if (atResult.text.includes('热')) sleepSuggestion = '睡觉: 短袖+薄睡袋';
             else if (humidityResult.text.includes('干')) sleepSuggestion = '睡觉: 盖好并开启加湿器';
             else if (humidityResult.text.includes('闷')) sleepSuggestion = '睡觉: 开空调除湿/通风';
             break;
-          case -2: // 严重不适
-            finalColor = '#f44336'; // 红色
+          case -2:
+            finalColor = '#f44336';
              if (atResult.text.includes('冷')) {
                 finalText += ' 🥶 务必保暖';
                 sleepSuggestion = '睡觉: 长袖+睡袋/盖毯';
@@ -172,8 +182,8 @@
         return { text: finalText, sleep: sleepSuggestion, color: finalColor };
       }
 
-      let s = judge(AT_silent, RH, Td, VPD);
-      let a = judge(AT_auto, RH, Td, VPD);
+      const s = judge(AT_silent, RH, Td, VPD);
+      const a = judge(AT_auto, RH, Td, VPD);
 
       document.getElementById('resultSilent').innerText = `静音: ${AT_silent.toFixed(1)}℃`;
       document.getElementById('comfortSilent').innerText = s.text; document.getElementById('comfortSilent').style.color = s.color;

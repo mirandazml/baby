@@ -15,21 +15,21 @@
     .result-box { width: 48%; text-align: center; background: #fafafa; padding: 0.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
     .result, .comfort, .sleep { margin-top: 0.3rem; font-size: 0.95rem; word-wrap: break-word; }
     .result { font-weight: bold; }
-    .comfort { font-weight: bold; }
-    .sleep { color: #6a1b9a; font-weight: bold; }
+    .comfort { font-weight: bold; font-size: 1rem; }
+    .sleep { color: #6a1b9a; font-weight: bold; font-size: 0.95rem; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>宝宝体感温度</h2>
+    <h2>宝宝体感温度与舒适度 🌈</h2>
 
-    <label>上传图片 (支持本地选择): <input type="file" id="upload" accept="image/*"></label>
+    <label>上传图片 (识别温湿度，方便快捷): <input type="file" id="upload" accept="image/*"></label>
 
-    <label>温度 (°C): <input type="number" id="temp" placeholder="输入数字"></label>
-    <label>相对湿度 (%): <input type="number" id="rh" placeholder="输入数字"></label>
-    <label>绝对湿度 (g/m³): <input type="number" id="ah" placeholder="输入数字"></label>
-    <label>露点温度 (°C): <input type="number" id="dewPoint" placeholder="输入数字"></label>
-    <label>饱和水汽压差 (VPD, kPa): <input type="number" id="vpd" placeholder="输入数字"></label>
+    <label>温度 (°C): <input type="number" inputmode="decimal" pattern="[0-9]*" id="temp" placeholder="请输入温度"></label>
+    <label>相对湿度 (%): <input type="number" inputmode="decimal" pattern="[0-9]*" id="rh" placeholder="请输入相对湿度"></label>
+    <label>绝对湿度 (g/m³): <input type="number" inputmode="decimal" pattern="[0-9]*" id="ah" placeholder="请输入绝对湿度"></label>
+    <label>露点温度 (°C): <input type="number" inputmode="decimal" pattern="[0-9]*" id="dewPoint" placeholder="请输入露点温度"></label>
+    <label>饱和水汽压差 (VPD）（kPa): <input type="number" inputmode="decimal" pattern="[0-9]*" id="vpd" placeholder="请输入VPD"></label>
 
     <div class="results">
       <div class="result-box">
@@ -61,7 +61,7 @@
             document.getElementById('vpd').value = nums[4];
             calcAT();
           } else {
-            alert('未识别到足够的数字，请检查图片');
+            alert('未识别到足够的数字，请确保图片清晰且信息完整');
           }
         });
       };
@@ -85,11 +85,11 @@
       let AT_auto = T + 0.33 * e - 0.70 * 0.5 - 4.00;
 
       function judge(AT,RH,AH,Td,VPD){
-        if(RH<40||AH<10||Td<10||VPD>1.6) return {text:'干凉 ☁️',sleep:'长袖+薄毯',color:'orange'};
-        if(RH>60||AH>18||Td>20||VPD<0.8) return {text:'闷热 🌥️',sleep:'短袖+薄睡袋',color:'blue'};
-        if(AT>=24&&AT<=26&&RH>=40&&RH<=60) return {text:'舒适 ☀️',sleep:'薄棉长袖或包屁衣',color:'green'};
-        if(AT<24) return {text:'略凉 ❄️',sleep:'长袖+薄毯',color:'orange'};
-        return {text:'偏热 ☀️',sleep:'短袖+薄睡袋',color:'red'};
+        if(RH<40||AH<10||Td<10||VPD>1.6) return {text:'干凉 😟 建议增加衣物',sleep:'睡觉: 长袖+薄毯',color:'orange'};
+        if(RH>60||AH>18||Td>20||VPD<0.8) return {text:'闷热 😓 建议保持通风',sleep:'睡觉: 短袖+薄睡袋',color:'blue'};
+        if(AT>=24&&AT<=26&&RH>=40&&RH<=60) return {text:'舒适 😄 宝宝开心',sleep:'睡觉: 薄棉长袖或包屁衣',color:'green'};
+        if(AT<24) return {text:'略凉 🥶 注意保暖',sleep:'睡觉: 长袖+薄毯',color:'orange'};
+        return {text:'偏热 🥵 注意降温',sleep:'睡觉: 短袖+薄睡袋',color:'red'};
       }
 
       let s=judge(AT_silent,RH,AH,Td,VPD);
@@ -97,11 +97,11 @@
 
       document.getElementById('resultSilent').innerText=`静音: ${AT_silent.toFixed(1)}°C`;
       document.getElementById('comfortSilent').innerText=s.text; document.getElementById('comfortSilent').style.color=s.color;
-      document.getElementById('sleepSilent').innerText='睡觉: '+s.sleep;
+      document.getElementById('sleepSilent').innerText=s.sleep;
 
       document.getElementById('resultAuto').innerText=`自动: ${AT_auto.toFixed(1)}°C`;
       document.getElementById('comfortAuto').innerText=a.text; document.getElementById('comfortAuto').style.color=a.color;
-      document.getElementById('sleepAuto').innerText='睡觉: '+a.sleep;
+      document.getElementById('sleepAuto').innerText=a.sleep;
     }
 
     ['temp','rh','ah','dewPoint','vpd'].forEach(id=>document.getElementById(id).value='');

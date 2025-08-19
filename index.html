@@ -26,9 +26,9 @@
     <label>上传图片 (支持本地选择): <input type="file" id="upload" accept="image/*"></label>
 
     <label>温度 (°C): <input type="number" id="temp" placeholder="输入数字"></label>
-    <label>湿度 (%): <input type="number" id="rh" placeholder="输入数字"></label>
+    <label>相对湿度 (%): <input type="number" id="rh" placeholder="输入数字"></label>
     <label>绝对湿度 (g/m³): <input type="number" id="ah" placeholder="输入数字"></label>
-    <label>露点 (°C): <input type="number" id="dewPoint" placeholder="输入数字"></label>
+    <label>露点温度 (°C): <input type="number" id="dewPoint" placeholder="输入数字"></label>
     <label>VPD (kPa): <input type="number" id="vpd" placeholder="输入数字"></label>
 
     <div class="results">
@@ -46,7 +46,6 @@
   </div>
 
   <script>
-    // 上传图片识别
     document.getElementById('upload').addEventListener('change', function(e){
       if(e.target.files.length === 0) return;
       let file = e.target.files[0];

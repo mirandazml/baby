@@ -3,21 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>宝宝体感温度 (体验优化版)</title>
+  <title>宝宝体感温度</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 1rem; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; margin: 0; padding: 1rem; }
     h2 { font-size: 1.5rem; text-align: center; color: #333; margin-bottom: 1rem; }
-    .container { max-width: 480px; margin: 0 auto; background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px
- 12px rgba(0,0,0,0.1); }
+    .container { max-width: 480px; margin: 0 auto; background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     label { display: block; margin-top: 0.8rem; font-size: 1rem; color: #555; }
     input { padding: 0.5rem; width: 100%; font-size: 0.95rem; margin-top: 0.3rem; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; }
-    .results { display: flex; justify-content: space-between; margin-top: 1rem; gap: 1rem; }
-    .result-box { width: 48%; text-align: center; background: #fafafa; padding: 0.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;}
-    .result, .comfort, .sleep { margin-top: 0.3rem; font-size: 0.95rem; word-wrap: break-word; }
-    .result { font-weight: bold; }
-    .comfort { font-weight: bold; font-size: 1rem; min-height: 40px; display: flex; align-items: center; justify-content: center; }
+    .results { display: flex; justify-content: space-between; margin-top: 1rem; gap: 4%; }
+    .result-box { flex: 1; text-align: center; background: #fafafa; padding: 0.6rem; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    .result { font-weight: bold; font-size: 1rem; }
+    .comfort { font-weight: bold; font-size: 1rem; }
     .sleep { color: #6a1b9a; font-weight: bold; font-size: 0.95rem; }
+    .tips { font-size: 0.85rem; color: #666; margin-top: 0.25rem; line-height: 1.3; }
   </style>
 </head>
 <body>
@@ -37,16 +36,19 @@
         <div class="result" id="resultSilent"></div>
         <div class="comfort" id="comfortSilent"></div>
         <div class="sleep" id="sleepSilent"></div>
+        <div class="tips" id="tipsSilent"></div>
       </div>
       <div class="result-box">
         <div class="result" id="resultAuto"></div>
         <div class="comfort" id="comfortAuto"></div>
         <div class="sleep" id="sleepAuto"></div>
+        <div class="tips" id="tipsAuto"></div>
       </div>
     </div>
   </div>
 
   <script>
+    // 图片上传识别
     document.getElementById('upload').addEventListener('change', function(e){
       if(e.target.files.length === 0) return;
       let file = e.target.files[0];
@@ -69,132 +71,109 @@
       reader.readAsDataURL(file);
     });
 
+    // 输入自动计算
     ['temp','rh','ah','dewPoint','vpd'].forEach(id => {
       document.getElementById(id).addEventListener('input', calcAT);
     });
-    
-    // --- 核心修改区域：优化calcAT函数 ---
+
     function calcAT() {
-      const T = parseFloat(document.getElementById('temp').value);
-      const RH = parseFloat(document.getElementById('rh').value);
-      const AH = parseFloat(document.getElementById('ah').value);
-      const Td = parseFloat(document.getElementById('dewPoint').value);
-      const VPD = parseFloat(document.getElementById('vpd').value);
-
-      // 如果有任何一个输入框是空的或无效的，就显示提示信息，而不是清空
-      if ([T, RH, AH, Td, VPD].some(isNaN)) {
-        const placeholderMessage = '...';
-        const instructionMessage = '请输入全部五项数据';
-        const instructionColor = '#9e9e9e'; // 灰色
-
-        document.getElementById('resultSilent').innerText = placeholderMessage;
-        document.getElementById('comfortSilent').innerText = instructionMessage;
-        document.getElementById('comfortSilent').style.color = instructionColor;
-        document.getElementById('sleepSilent').innerText = '';
-
-        document.getElementById('resultAuto').innerText = placeholderMessage;
-        document.getElementById('comfortAuto').innerText = instructionMessage;
-        document.getElementById('comfortAuto').style.color = instructionColor;
-        document.getElementById('sleepAuto').innerText = '';
-        return; // 提前结束函数
+      let T = parseFloat(document.getElementById('temp').value);
+      let RH = parseFloat(document.getElementById('rh').value);
+      let AH = parseFloat(document.getElementById('ah').value);
+      let Td = parseFloat(document.getElementById('dewPoint').value);
+      let VPD = parseFloat(document.getElementById('vpd').value);
+      if ([T,RH,AH,Td,VPD].some(isNaN)) {
+        ['resultSilent','resultAuto','comfortSilent','comfortAuto','sleepSilent','sleepAuto','tipsSilent','tipsAuto'].forEach(id=>document.getElementById(id).innerText='');
+        return;
       }
 
-      // --- 只有当所有数据都有效时，才执行以下计算 ---
+      // 简化版 Steadman 体感温度 (AT)，两种风速
+      let e = (RH / 100) * 6.105 * Math.exp((17.27 * T) / (237.7 + T));
+      let AT_silent = T + 0.33 * e - 0.70 * 0.2 - 4.00; // 静音 0.2 m/s
+      let AT_auto   = T + 0.33 * e - 0.70 * 0.5 - 4.00; // 自动 0.5 m/s
 
-      const e = (RH / 100) * 6.105 * Math.exp((17.27 * T) / (237.7 + T));
-      const AT_silent = T + 0.33 * e - 0.70 * 0.2 - 4.00;
-      const AT_auto = T + 0.33 * e - 0.70 * 0.5 - 4.00;
-      
-      const getATScore = (at) => {
-        if (at >= 24.0 && at <= 25.5) return { score: 2, text: '体感温和' };
-        if (at >= 22.5 && at < 24.0) return { score: 1, text: '体感舒适' };
-        if (at > 25.5 && at <= 27.0) return { score: 1, text: '体感舒适' };
-        if (at >= 21.0 && at < 22.5) return { score: -1, text: '体感偏凉' };
-        if (at > 27.0 && at <= 28.5) return { score: -1, text: '体感偏热' };
-        if (at < 21.0) return { score: -2, text: '体感过冷' };
-        return { score: -2, text: '体感过热' };
-      };
+      function scoreAndAdvice(AT,RH,AH,Td,VPD){
+        // —— 优化后的多因子打分 ——
+        // 温度：25 为中心，±1 以内不扣分，之后每 0.5 扣 1.5 分
+        let temp_dev = Math.max(0, Math.abs(AT - 25) - 1);
+        let tempScore = Math.floor(temp_dev / 0.5) * 1.5;
 
-      const getHumidityScore = (rh, td, vpd) => {
-          if (rh > 70 || td > 20 || vpd < 0.6) return { score: -2, text: '且非常闷热' };
-          if (rh > 60 || td > 18 || vpd < 0.8) return { score: -1, text: '且有些闷' };
-          if (rh < 35 || td < 10 || vpd > 1.8) return { score: -2, text: '且非常干燥' };
-          if (rh < 45 || td < 12 || vpd > 1.6) return { score: -1, text: '且有些干' };
-          if (rh >= 45 && rh <= 60) return { score: 1, text: '湿度适中' };
-          return { score: 0, text: '' };
-      };
-
-      function judge(AT, RH, Td, VPD) {
-        const atResult = getATScore(AT);
-        const humidityResult = getHumidityScore(RH, Td, VPD);
-
-        let finalText = atResult.text;
-        let finalColor = '#4caf50';
-        let sleepSuggestion = '睡觉: 薄棉长袖/包屁衣';
-
-        if (humidityResult.score < 1 && humidityResult.text) {
-            if (atResult.score > 0) {
-                finalText += ` 🙂 ${humidityResult.text.replace('且', '但')}`;
-            } else {
-                finalText += ` 😟 ${humidityResult.text}`;
-            }
-        } else if (humidityResult.score === 1 && atResult.score === 2) {
-             finalText = '黄金范围 😄 温湿度完美';
+        // 相对湿度：40-60 理想；35-40/60-65 轻微；30-35/65-70 中等；<30 或 >70 严重
+        let rhScore = 0;
+        if (RH < 40 || RH > 60) {
+          let d = RH < 40 ? 40 - RH : RH - 60;
+          if (d <= 5) rhScore = 1; else if (d <= 10) rhScore = 2; else rhScore = 3;
         }
 
-        const worstScore = Math.min(atResult.score, humidityResult.score);
-
-        switch (worstScore) {
-          case 2:
-            finalColor = '#4caf50';
-            sleepSuggestion = '睡觉: 薄棉长袖/包屁衣';
-            break;
-          case 1:
-            finalColor = '#8bc34a';
-             sleepSuggestion = (AT > 25.5) ? '睡觉: 短袖/薄款包屁衣' : '睡觉: 长袖+包屁衣';
-            break;
-          case -1:
-            finalColor = '#ffc107';
-            if (atResult.score < 0 && humidityResult.score < 0) sleepSuggestion = '睡觉: 调整温湿度再睡';
-            else if (atResult.text.includes('凉')) sleepSuggestion = '睡觉: 长袖+薄盖毯';
-            else if (atResult.text.includes('热')) sleepSuggestion = '睡觉: 短袖+薄睡袋';
-            else if (humidityResult.text.includes('干')) sleepSuggestion = '睡觉: 盖好并开启加湿器';
-            else if (humidityResult.text.includes('闷')) sleepSuggestion = '睡觉: 开空调除湿/通风';
-            break;
-          case -2:
-            finalColor = '#f44336';
-             if (atResult.text.includes('冷')) {
-                finalText += ' 🥶 务必保暖';
-                sleepSuggestion = '睡觉: 长袖+睡袋/盖毯';
-             } else if (atResult.text.includes('热')) {
-                finalText += ' 🥵🥵 必须降温';
-                sleepSuggestion = '睡觉: 背心/尿不湿';
-             } else if (humidityResult.text.includes('干燥')) {
-                finalText += ' 🏜️ 严重干燥';
-                sleepSuggestion = '睡觉: 立即加湿！';
-             } else if (humidityResult.text.includes('闷热')) {
-                finalText += ' ♨️ 严重闷热';
-                sleepSuggestion = '睡觉: 立即除湿降温！';
-             }
-            break;
+        // 绝对湿度：11-15 理想；9-11/15-17 轻微；7-9/17-19 中等；<7 或 >19 严重
+        let ahScore = 0;
+        if (AH < 11 || AH > 15) {
+          let d = AH < 11 ? 11 - AH : AH - 15;
+          if (d <= 2) ahScore = 1; else if (d <= 4) ahScore = 2; else ahScore = 3;
         }
 
-        return { text: finalText, sleep: sleepSuggestion, color: finalColor };
+        // 露点温度：12-18 理想；10-12/18-20 轻微；8-10/20-22 中等；<8 或 >22 严重
+        let tdScore = 0;
+        if (Td < 12 || Td > 18) {
+          let d = Td < 12 ? 12 - Td : Td - 18;
+          if (d <= 2) tdScore = 1; else if (d <= 4) tdScore = 2; else tdScore = 3;
+        }
+
+        // VPD：0.9-1.3 理想；0.8-0.9/1.3-1.6 轻微；<0.8 或 >1.6 中等偏重（2 分）；>2.0 严重（3 分）
+        let vpdScore = 0;
+        if (VPD < 0.9 || VPD > 1.3) {
+          if ((VPD >= 0.8 && VPD < 0.9) || (VPD > 1.3 && VPD <= 1.6)) vpdScore = 1;
+          else if (VPD < 0.8 || (VPD > 1.6 && VPD <= 2.0)) vpdScore = 2;
+          else if (VPD > 2.0) vpdScore = 3;
+        }
+
+        let total = tempScore + rhScore + ahScore + tdScore + vpdScore;
+
+        // 状态等级
+        let state, color, face;
+        if (total <= 1) { state = '舒适'; color = 'green'; face='😄'; }
+        else if (total <= 3) { state = '稍有不适'; color = 'goldenrod'; face='🙂'; }
+        else if (total <= 5) { state = '需调整'; color = 'orange'; face='😓'; }
+        else { state = AT >= 25 ? '偏热' : '偏冷'; color = AT >= 25 ? 'red' : 'dodgerblue'; face = AT >= 25 ? '🥵' : '🥶'; }
+
+        // 睡眠建议（基于 AT）
+        let sleep;
+        if (AT < 23) sleep = '长袖＋厚薄毯';
+        else if (AT < 24.5) sleep = '长袖＋薄毯';
+        else if (AT <= 26) sleep = '薄棉长袖/包屁衣';
+        else if (AT <= 27.5) sleep = '短袖＋薄睡袋';
+        else sleep = '短袖，风扇低档/加强通风';
+
+        // 生成简洁建议（挑 2 条最主要问题）
+        let issues = [];
+        if (tempScore>=1) issues.push(AT>25? '温度偏高，适当降温' : '温度偏低，适当增温');
+        if (rhScore>=1) issues.push(RH>60? '湿度偏高，注意除湿' : '空气偏干，适度加湿');
+        if (vpdScore>=1) issues.push(VPD>1.3? 'VPD偏大，体感更干' : 'VPD偏小，体感发闷');
+        if (ahScore>=2) issues.push(AH>15? '绝对湿度偏高' : '绝对湿度偏低');
+        if (tdScore>=2) issues.push(Td>18? '露点高，黏腻感强' : '露点低，易干燥');
+        let tips = issues.slice(0,2).join('；');
+
+        return {
+          text: `${state} ${face}`,
+          color,
+          sleep: `睡觉: ${sleep}`,
+          tips: tips ? `建议：${tips}` : ''
+        };
       }
 
-      const s = judge(AT_silent, RH, Td, VPD);
-      const a = judge(AT_auto, RH, Td, VPD);
+      let s = scoreAndAdvice(AT_silent,RH,AH,Td,VPD);
+      let a = scoreAndAdvice(AT_auto,RH,AH,Td,VPD);
 
-      document.getElementById('resultSilent').innerText = `静音: ${AT_silent.toFixed(1)}℃`;
+      document.getElementById('resultSilent').innerText = `静音: ${AT_silent.toFixed(1)}`;
       document.getElementById('comfortSilent').innerText = s.text; document.getElementById('comfortSilent').style.color = s.color;
       document.getElementById('sleepSilent').innerText = s.sleep;
+      document.getElementById('tipsSilent').innerText = s.tips;
 
-      document.getElementById('resultAuto').innerText = `自动: ${AT_auto.toFixed(1)}℃`;
+      document.getElementById('resultAuto').innerText = `自动: ${AT_auto.toFixed(1)}`;
       document.getElementById('comfortAuto').innerText = a.text; document.getElementById('comfortAuto').style.color = a.color;
       document.getElementById('sleepAuto').innerText = a.sleep;
+      document.getElementById('tipsAuto').innerText = a.tips;
     }
-
-    document.addEventListener('DOMContentLoaded', calcAT);
   </script>
 </body>
 </html>

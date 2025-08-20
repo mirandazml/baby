@@ -4,118 +4,127 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>宝宝舒适度计算器</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 1em; background: #f9f9f9; }
+    body { font-family: sans-serif; margin: 1rem; background: #f9fafb; }
     h2 { text-align: center; }
-    .container { max-width: 400px; margin: auto; background: #fff; padding: 1em; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    label { display: block; margin-top: 10px; font-size: 14px; }
-    input { width: 100%; padding: 8px; margin-top: 4px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; }
-    .result { margin-top: 15px; padding: 10px; background: #f0f8ff; border-radius: 8px; }
-    .modes { display: flex; justify-content: space-between; gap: 10px; }
-    .mode-box { flex: 1; padding: 10px; border-radius: 8px; background: #fafafa; text-align: center; box-shadow: inset 0 0 4px rgba(0,0,0,0.1); }
-    .emoji { font-size: 24px; }
-    .upload { margin-top: 15px; }
+    .input-area, .result { 
+      margin: 1rem 0; padding: 1rem; 
+      background: white; border-radius: 12px; 
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
+    }
+    input { width: 100%; padding: 0.6rem; margin: 0.4rem 0; font-size: 1rem; }
+    button { 
+      width: 100%; padding: 0.8rem; 
+      background: #4CAF50; color: white; border: none; 
+      border-radius: 10px; font-size: 1rem; cursor: pointer; 
+    }
+    button:hover { background: #45a049; }
+    .results { display: flex; justify-content: space-between; }
+    .card { flex: 1; margin: 0.5rem; padding: 0.8rem; border-radius: 12px; background: #f0fdf4; text-align: center; }
+    .emoji { font-size: 2rem; }
+    .upload { margin-top: 1rem; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>宝宝舒适度计算器</h2>
+  <h2>宝宝舒适度计算器 😊</h2>
 
-    <label>室温</label>
-    <input type="number" id="temp" inputmode="decimal" placeholder="输入数字">
-
+  <div class="input-area">
+    <label>温度</label>
+    <input id="temp" type="number" inputmode="decimal" placeholder="输入温度">
     <label>相对湿度</label>
-    <input type="number" id="rh" inputmode="decimal" placeholder="输入数字">
-
+    <input id="rh" type="number" inputmode="decimal" placeholder="输入相对湿度">
     <label>绝对湿度</label>
-    <input type="number" id="ah" inputmode="decimal" placeholder="输入数字">
-
+    <input id="ah" type="number" inputmode="decimal" placeholder="输入绝对湿度">
     <label>露点温度</label>
-    <input type="number" id="td" inputmode="decimal" placeholder="输入数字">
-
+    <input id="dew" type="number" inputmode="decimal" placeholder="输入露点温度">
     <label>饱和水汽压差 (VPD)</label>
-    <input type="number" id="vpd" inputmode="decimal" placeholder="输入数字">
+    <input id="vpd" type="number" inputmode="decimal" placeholder="输入VPD">
+    <button onclick="calculate()">计算舒适度</button>
 
     <div class="upload">
-      <label>上传图片识别数据</label>
-      <input type="file" id="imageInput" accept="image/*">
+      <p>或上传截图自动识别：</p>
+      <input type="file" accept="image/*" onchange="handleImage(this.files[0])">
     </div>
-
-    <div id="results" class="result"></div>
   </div>
 
+  <div class="result" id="result"></div>
+
   <script>
-    const inputs = ["temp", "rh", "ah", "td", "vpd"];
-    inputs.forEach(id => {
-      document.getElementById(id).addEventListener("input", calculate);
-    });
-    document.getElementById("imageInput").addEventListener("change", handleImage);
-
     function calculate() {
-      let T = parseFloat(document.getElementById("temp").value);
-      let RH = parseFloat(document.getElementById("rh").value);
-      let AH = parseFloat(document.getElementById("ah").value);
-      let Td = parseFloat(document.getElementById("td").value);
-      let VPD = parseFloat(document.getElementById("vpd").value);
+      const temp = parseFloat(document.getElementById("temp").value) || 0;
+      const rh = parseFloat(document.getElementById("rh").value) || 0;
+      const ah = parseFloat(document.getElementById("ah").value) || 0;
+      const dew = parseFloat(document.getElementById("dew").value) || 0;
+      const vpd = parseFloat(document.getElementById("vpd").value) || 0;
 
-      if ([T, RH, AH, Td, VPD].some(isNaN)) {
-        document.getElementById("results").innerHTML = "请输入完整数据或上传图片识别";
-        return;
+      const results = {
+        quiet: temp - (0.2 * (100 - rh) / 5),
+        auto: temp - (0.5 * (100 - rh) / 5)
+      };
+
+      const comfort = (t, r, v) => {
+        if (t >= 22 && t <= 26 && r >= 40 && r <= 65 && v >= 0.5 && v <= 1.5) {
+          return "😊 舒适，宝宝安心";
+        } else if (t < 20 || t > 28) {
+          return "🥶🥵 温度不合适，需调整空调或衣物";
+        } else if (r < 35) {
+          return "💨 空气偏干，注意加湿";
+        } else if (r > 70) {
+          return "💦 湿度过高，注意除湿";
+        } else {
+          return "😐 一般，建议观察宝宝状态";
+        }
+      };
+
+      document.getElementById("result").innerHTML = `
+        <div class="results">
+          <div class="card">
+            <div class="emoji">🌙</div>
+            <p>静音模式</p>
+            <p>体感温度: ${results.quiet.toFixed(1)}</p>
+            <p>${comfort(temp, rh, vpd)}</p>
+          </div>
+          <div class="card">
+            <div class="emoji">💨</div>
+            <p>自动模式</p>
+            <p>体感温度: ${results.auto.toFixed(1)}</p>
+            <p>${comfort(temp, rh, vpd)}</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="emoji">👕</div>
+          <p>睡觉建议：${sleepAdvice(temp)}</p>
+        </div>
+      `;
+    }
+
+    function sleepAdvice(temp) {
+      if (temp < 20) return "长袖+睡袋";
+      if (temp < 24) return "长袖薄睡袋";
+      if (temp < 27) return "短袖睡袋";
+      return "轻薄短袖";
+    }
+
+    // ---- OCR 识别并提取 ----
+    async function handleImage(file) {
+      const { data: { text } } = await Tesseract.recognize(file, 'chi_sim+eng', {
+        tessedit_char_whitelist: '0123456789.%'
+      });
+
+      console.log("OCR结果:", text);
+
+      function extractValue(keyword) {
+        const regex = new RegExp(keyword + '\\s*([0-9]+\\.?[0-9]*)');
+        const match = text.match(regex);
+        return match ? parseFloat(match[1]) : '';
       }
 
-      let html = `<h3>计算结果</h3><div class="modes">`;
-      [0.2, 0.5].forEach((wind, i) => {
-        let AT = T - (wind * 2); // 简化体感温度
-        let comfort = judgeComfort(AT, RH, AH, Td, VPD);
-        html += `<div class="mode-box"><b>${i===0?"静音":"自动"}模式</b><br>
-                 体感温度: ${AT.toFixed(1)}<br>
-                 <span class="emoji">${comfort.emoji}</span><br>
-                 ${comfort.text}<br>
-                 <small>${comfort.clothes}</small></div>`;
-      });
-      html += "</div>";
-      document.getElementById("results").innerHTML = html;
-    }
-
-    function judgeComfort(AT, RH, AH, Td, VPD) {
-      let score = 0;
-      if (AT>=24 && AT<=26) score += 2; else if (AT>=22 && AT<=28) score += 1;
-      if (RH>=40 && RH<=60) score += 2; else if (RH>=30 && RH<=70) score += 1;
-      if (AH>=10 && AH<=18) score += 1;
-      if (Td>=10 && Td<=20) score += 1;
-      if (VPD>=0.8 && VPD<=1.6) score += 2; else if (VPD>=0.5 && VPD<=2.0) score += 1;
-
-      if (score>=7) return {emoji:"😊", text:"非常舒适", clothes:"睡觉穿薄睡衣即可"};
-      if (score>=5) return {emoji:"🙂", text:"基本舒适，稍加注意", clothes:"薄睡衣+薄被"};
-      if (AT<22 || Td<10 || RH<35) return {emoji:"🥶", text:"偏凉，注意保暖", clothes:"长袖睡衣+被子"};
-      if (AT>28 || Td>20 || RH>70) return {emoji:"🥵", text:"偏热，注意降温", clothes:"轻薄睡衣或短袖"};
-      return {emoji:"😐", text:"一般，需观察调整", clothes:"根据情况加减衣物"};
-    }
-
-    async function handleImage(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      const { data: { text } } = await Tesseract.recognize(file, 'eng', {
-        tessedit_char_whitelist: '0123456789.'
-      });
-
-      // 清理结果，只保留数字和小数点
-      let clean = text.replace(/[^0-9.\s]/g, " ").split(/\s+/).filter(v => v);
-
-      // 简单映射填入
-      inputs.forEach((id, idx) => {
-        if (clean[idx]) {
-          let val = parseFloat(clean[idx]);
-          // 范围检查
-          if (id==="temp" && (val<0 || val>40)) return;
-          if (id==="rh" && (val<0 || val>100)) return;
-          if (id==="ah" && (val<0 || val>30)) return;
-          if (id==="td" && (val<-10 || val>30)) return;
-          if (id==="vpd" && (val<0 || val>5)) return;
-          document.getElementById(id).value = val;
-        }
-      });
+      document.getElementById("temp").value = extractValue("温度");
+      document.getElementById("rh").value = extractValue("相对湿度");
+      document.getElementById("ah").value = extractValue("绝对湿度");
+      document.getElementById("dew").value = extractValue("露点温度");
+      document.getElementById("vpd").value = extractValue("VPD");
 
       calculate();
     }

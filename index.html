@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>宝宝舒适度计算器</title>
+  <title>宝宝舒适度计算器（体感温度版）</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 1rem; background: #f9fafb; }
@@ -19,124 +19,147 @@
   </style>
 </head>
 <body>
-  <h2>宝宝舒适度计算器 😊</h2>
+<h2>宝宝舒适度计算器（体感温度版） 😊</h2>
 
-  <div class="input-area">
-    <label>温度</label>
-    <input id="temp" type="number" inputmode="decimal" placeholder="输入温度">
-    <label>相对湿度</label>
-    <input id="rh" type="number" inputmode="decimal" placeholder="输入相对湿度">
-    <label>绝对湿度</label>
-    <input id="ah" type="number" inputmode="decimal" placeholder="输入绝对湿度">
-    <label>露点温度</label>
-    <input id="dew" type="number" inputmode="decimal" placeholder="输入露点温度">
-    <label>饱和水汽压差 (VPD)</label>
-    <input id="vpd" type="number" inputmode="decimal" placeholder="输入VPD">
-    <button onclick="calculate()">计算舒适度</button>
+<div class="input-area">
+  <label>温度 (℃)</label>
+  <input id="temp" type="number" inputmode="decimal" step="0.1" placeholder="输入温度">
+  <label>相对湿度 (%)</label>
+  <input id="rh" type="number" inputmode="decimal" step="0.1" placeholder="输入相对湿度">
+  <label>绝对湿度 (g/m³)</label>
+  <input id="ah" type="number" inputmode="decimal" step="0.1" placeholder="输入绝对湿度">
+  <label>露点温度 (℃)</label>
+  <input id="dew" type="number" inputmode="decimal" step="0.1" placeholder="输入露点温度">
+  <label>饱和水汽压差 (VPD kPa)</label>
+  <input id="vpd" type="number" inputmode="decimal" step="0.01" placeholder="输入VPD">
 
-    <div class="upload">
-      <p>或上传截图自动识别：</p>
-      <input type="file" accept="image/*" onchange="handleImage(this.files[0])">
-    </div>
+  <button onclick="calculate()">计算舒适度</button>
+
+  <div class="upload">
+    <p>或上传截图自动识别：</p>
+    <input type="file" accept="image/*" onchange="handleImage(this.files[0])">
+    <p id="ocr-loading" style="color:#999; display:none;">正在识别图片…</p>
   </div>
+</div>
 
-  <div class="result" id="result"></div>
+<div class="result" id="result"></div>
 
-  <script>
-    function calculate() {
-      const temp = parseFloat(document.getElementById("temp").value) || 0;
-      const rh = parseFloat(document.getElementById("rh").value) || 0;
-      const ah = parseFloat(document.getElementById("ah").value) || 0;
-      const dew = parseFloat(document.getElementById("dew").value) || 0;
-      const vpd = parseFloat(document.getElementById("vpd").value) || 0;
+<script>
+function calculate() {
+  const temp = parseFloat(document.getElementById("temp").value) || 0;
+  const rh = parseFloat(document.getElementById("rh").value) || 0;
+  const ah = parseFloat(document.getElementById("ah").value) || 0;
+  const dew = parseFloat(document.getElementById("dew").value) || 0;
+  const vpd = parseFloat(document.getElementById("vpd").value) || 0;
 
-      const results = {
-        quiet: temp - (0.2 * (100 - rh) / 5),
-        auto: temp - (0.5 * (100 - rh) / 5)
-      };
+  // 计算近似体感温度 (简单版)
+  function apparentTemp(t, r, v) {
+    // 简化公式：体感温度 = 温度 + 0.33*饱和水汽压差(kPa)*10 - 0.7*(风速影响忽略)
+    // 这里用 VPD 作为蒸发影响参考
+    let at = t + 0.33*v*10;
+    return at;
+  }
 
-      const comfort = (t, r, v) => {
-        if (t >= 22 && t <= 26 && r >= 40 && r <= 65 && v >= 0.5 && v <= 1.5) {
-          return "😊 舒适，宝宝安心";
-        } else if (t < 20 || t > 28) {
-          return "🥶🥵 温度不合适，需调整空调或衣物";
-        } else if (r < 35) {
-          return "💨 空气偏干，注意加湿";
-        } else if (r > 70) {
-          return "💦 湿度过高，注意除湿";
-        } else {
-          return "😐 一般，建议观察宝宝状态";
-        }
-      };
+  const atemp = apparentTemp(temp, rh, vpd);
 
-      document.getElementById("result").innerHTML = `
-        <div class="results">
-          <div class="card">
-            <div class="emoji">🌙</div>
-            <p>静音模式</p>
-            <p>体感温度: ${results.quiet.toFixed(1)}</p>
-            <p>${comfort(temp, rh, vpd)}</p>
-          </div>
-          <div class="card">
-            <div class="emoji">💨</div>
-            <p>自动模式</p>
-            <p>体感温度: ${results.auto.toFixed(1)}</p>
-            <p>${comfort(temp, rh, vpd)}</p>
-          </div>
-        </div>
-        <div class="card">
-          <div class="emoji">👕</div>
-          <p>睡觉建议：${sleepAdvice(temp)}</p>
-        </div>
-      `;
-    }
+  function comfort(t, r, a, d, v, at) {
+    let msgs = [];
+    if (t >= 22 && t <= 26) msgs.push("温度舒适");
+    else if (t < 20) msgs.push("偏冷");
+    else if (t > 28) msgs.push("偏热");
 
-    function sleepAdvice(temp) {
-      if (temp < 20) return "长袖+厚睡袋";
-      if (temp < 24) return "长袖薄睡袋";
-      if (temp < 27) return "短袖睡袋";
-      return "轻薄短袖";
-    }
+    if (r >= 40 && r <= 65) msgs.push("湿度舒适");
+    else if (r < 35) msgs.push("空气偏干");
+    else if (r > 70) msgs.push("空气偏湿");
 
-    // ---- OCR 识别并提取 ----
-    async function handleImage(file) {
-      const { data: { text } } = await Tesseract.recognize(file, 'chi_sim+eng');
-      console.log("OCR原始结果:", text);
+    if (v >= 0.5 && v <= 1.5) msgs.push("蒸发适中");
+    else if (v < 0.5) msgs.push("空气湿润");
+    else msgs.push("空气偏干");
 
-      // 统一去掉单位符号
-      let cleanText = text.replace(/[℃%]/g, "").replace(/\s+/g, " ");
+    if(at < 20) msgs.push("体感偏冷");
+    else if(at > 27) msgs.push("体感偏热");
+    else msgs.push("体感舒适");
 
-      // 匹配关键词
-      function extractValue(keywords) {
-        for (let k of keywords) {
-          const regex = new RegExp(k + "\\s*([0-9]+\\.?[0-9]*)");
-          const match = cleanText.match(regex);
-          if (match) return parseFloat(match[1]);
-        }
-        return null;
+    return msgs.join("，");
+  }
+
+  function sleepAdvice(at) {
+    if (at < 20) return "长袖+厚睡袋";
+    if (at < 24) return "长袖薄睡袋";
+    if (at < 27) return "短袖睡袋";
+    return "轻薄短袖";
+  }
+
+  document.getElementById("result").innerHTML = `
+    <div class="results">
+      <div class="card">
+        <div class="emoji">🌙</div>
+        <p>静音模式</p>
+        <p>体感温度: ${atemp.toFixed(1)}℃</p>
+        <p>${comfort(temp, rh, ah, dew, vpd, atemp)}</p>
+      </div>
+      <div class="card">
+        <div class="emoji">💨</div>
+        <p>自动模式</p>
+        <p>体感温度: ${atemp.toFixed(1)}℃</p>
+        <p>${comfort(temp, rh, ah, dew, vpd, atemp)}</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="emoji">👕</div>
+      <p>睡觉建议：${sleepAdvice(atemp)}</p>
+    </div>
+  `;
+}
+
+// OCR关键字识别
+async function handleImage(file) {
+  const loading = document.getElementById("ocr-loading");
+  loading.style.display = "block";
+  try {
+    const { data: { text } } = await Tesseract.recognize(file, 'chi_sim+eng');
+    loading.style.display = "none";
+    console.log("OCR原始结果:", text);
+
+    const cleanText = text.replace(/[℃%]/g,"").replace(/\s+/g," ");
+
+    function extractValue(keys) {
+      for (let k of keys) {
+        const regex = new RegExp(k + "\\s*[:：]?\\s*([0-9]+\\.?[0-9]*)");
+        const match = cleanText.match(regex);
+        if (match) return parseFloat(match[1]);
       }
-
-      // 填充输入框
-      document.getElementById("temp").value = extractValue(["温度","气温"]) || "";
-      document.getElementById("rh").value   = extractValue(["相对湿度","湿度"]) || "";
-      document.getElementById("ah").value   = extractValue(["绝对湿度"]) || "";
-      document.getElementById("dew").value  = extractValue(["露点","露点温度"]) || "";
-      document.getElementById("vpd").value  = extractValue(["VPD","饱和水汽压差"]) || "";
-
-      // 如果关键词都没找到，就兜底提取所有数字
-      if (!document.getElementById("temp").value) {
-        const nums = cleanText.match(/[0-9]+\.?[0-9]*/g) || [];
-        if (nums.length >= 5) {
-          [document.getElementById("temp").value,
-           document.getElementById("rh").value,
-           document.getElementById("ah").value,
-           document.getElementById("dew").value,
-           document.getElementById("vpd").value] = nums;
-        }
-      }
-
-      calculate();
+      return null;
     }
-  </script>
+
+    const tempVal = extractValue(["温度","气温"]);
+    const rhVal   = extractValue(["相对湿度","湿度"]);
+    const ahVal   = extractValue(["绝对湿度"]);
+    const dewVal  = extractValue(["露点","露点温度"]);
+    const vpdVal  = extractValue(["VPD","饱和水汽压差"]);
+
+    if(tempVal !== null) document.getElementById("temp").value = tempVal.toFixed(1);
+    if(rhVal   !== null) document.getElementById("rh").value   = rhVal.toFixed(1);
+    if(ahVal   !== null) document.getElementById("ah").value   = ahVal.toFixed(1);
+    if(dewVal  !== null) document.getElementById("dew").value  = dewVal.toFixed(1);
+    if(vpdVal  !== null) document.getElementById("vpd").value  = vpdVal.toFixed(2);
+
+    // 顺序补充
+    const nums = cleanText.match(/[0-9]+\.?[0-9]*/g) || [];
+    let idx = 0;
+    if(tempVal===null && nums[idx]!==undefined) document.getElementById("temp").value = parseFloat(nums[idx++]).toFixed(1);
+    if(rhVal===null   && nums[idx]!==undefined) document.getElementById("rh").value   = parseFloat(nums[idx++]).toFixed(1);
+    if(ahVal===null   && nums[idx]!==undefined) document.getElementById("ah").value   = parseFloat(nums[idx++]).toFixed(1);
+    if(dewVal===null  && nums[idx]!==undefined) document.getElementById("dew").value  = parseFloat(nums[idx++]).toFixed(1);
+    if(vpdVal===null  && nums[idx]!==undefined) document.getElementById("vpd").value  = parseFloat(nums[idx++]).toFixed(2);
+
+    calculate();
+  } catch (err) {
+    loading.style.display = "none";
+    alert("识别失败，请重试");
+    console.error(err);
+  }
+}
+</script>
 </body>
 </html>

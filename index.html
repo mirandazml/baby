@@ -3,176 +3,121 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>宝宝体感温度</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+  <title>宝宝舒适度计算器</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; margin: 0; padding: 1rem; }
-    h2 { font-size: 1.5rem; text-align: center; color: #333; margin-bottom: 1rem; }
-    .container { max-width: 480px; margin: 0 auto; background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    label { display: block; margin-top: 0.8rem; font-size: 1rem; color: #555; }
-    input { padding: 0.5rem; width: 100%; font-size: 0.95rem; margin-top: 0.3rem; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; }
-    .results { display: flex; justify-content: space-between; margin-top: 1rem; gap: 4%; }
-    .result-box { flex: 1; text-align: center; background: #fafafa; padding: 0.6rem; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-    .result { font-weight: bold; font-size: 1rem; }
-    .comfort { font-weight: bold; font-size: 1rem; }
-    .sleep { color: #6a1b9a; font-weight: bold; font-size: 0.95rem; }
-    .tips { font-size: 0.85rem; color: #666; margin-top: 0.25rem; line-height: 1.3; }
+    body { font-family: sans-serif; padding: 1em; background: #f9f9f9; }
+    h2 { text-align: center; }
+    .container { max-width: 400px; margin: auto; background: #fff; padding: 1em; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    label { display: block; margin-top: 10px; font-size: 14px; }
+    input { width: 100%; padding: 8px; margin-top: 4px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; }
+    .result { margin-top: 15px; padding: 10px; background: #f0f8ff; border-radius: 8px; }
+    .modes { display: flex; justify-content: space-between; gap: 10px; }
+    .mode-box { flex: 1; padding: 10px; border-radius: 8px; background: #fafafa; text-align: center; box-shadow: inset 0 0 4px rgba(0,0,0,0.1); }
+    .emoji { font-size: 24px; }
+    .upload { margin-top: 15px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>宝宝体感温度与舒适度 🌈</h2>
+    <h2>宝宝舒适度计算器</h2>
 
-    <label>上传图片: <input type="file" id="upload" accept="image/*"></label>
+    <label>室温</label>
+    <input type="number" id="temp" inputmode="decimal" placeholder="输入数字">
 
-    <label>温度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="temp" placeholder="请输入温度"></label>
-    <label>相对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="rh" placeholder="请输入相对湿度"></label>
-    <label>绝对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="ah" placeholder="请输入绝对湿度"></label>
-    <label>露点温度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="dewPoint" placeholder="请输入露点温度"></label>
-    <label>饱和水汽压差 (VPD): <input type="number" inputmode="decimal" pattern="[0-9]*" id="vpd" placeholder="请输入VPD"></label>
+    <label>相对湿度</label>
+    <input type="number" id="rh" inputmode="decimal" placeholder="输入数字">
 
-    <div class="results">
-      <div class="result-box">
-        <div class="result" id="resultSilent"></div>
-        <div class="comfort" id="comfortSilent"></div>
-        <div class="sleep" id="sleepSilent"></div>
-        <div class="tips" id="tipsSilent"></div>
-      </div>
-      <div class="result-box">
-        <div class="result" id="resultAuto"></div>
-        <div class="comfort" id="comfortAuto"></div>
-        <div class="sleep" id="sleepAuto"></div>
-        <div class="tips" id="tipsAuto"></div>
-      </div>
+    <label>绝对湿度</label>
+    <input type="number" id="ah" inputmode="decimal" placeholder="输入数字">
+
+    <label>露点温度</label>
+    <input type="number" id="td" inputmode="decimal" placeholder="输入数字">
+
+    <label>饱和水汽压差 (VPD)</label>
+    <input type="number" id="vpd" inputmode="decimal" placeholder="输入数字">
+
+    <div class="upload">
+      <label>上传图片识别数据</label>
+      <input type="file" id="imageInput" accept="image/*">
     </div>
+
+    <div id="results" class="result"></div>
   </div>
 
   <script>
-    // 图片上传识别
-    document.getElementById('upload').addEventListener('change', function(e){
-      if(e.target.files.length === 0) return;
-      let file = e.target.files[0];
-      let reader = new FileReader();
-      reader.onload = function(event){
-        Tesseract.recognize(event.target.result, 'eng').then(({ data: { text } }) => {
-          let nums = text.match(/\d+(\.\d+)?/g);
-          if(nums && nums.length >= 5){
-            document.getElementById('temp').value = nums[0];
-            document.getElementById('rh').value = nums[1];
-            document.getElementById('ah').value = nums[2];
-            document.getElementById('dewPoint').value = nums[3];
-            document.getElementById('vpd').value = nums[4];
-            calcAT();
-          } else {
-            alert('未识别到足够的数字，请确保图片清晰且信息完整');
-          }
-        });
-      };
-      reader.readAsDataURL(file);
+    const inputs = ["temp", "rh", "ah", "td", "vpd"];
+    inputs.forEach(id => {
+      document.getElementById(id).addEventListener("input", calculate);
     });
+    document.getElementById("imageInput").addEventListener("change", handleImage);
 
-    // 输入自动计算
-    ['temp','rh','ah','dewPoint','vpd'].forEach(id => {
-      document.getElementById(id).addEventListener('input', calcAT);
-    });
+    function calculate() {
+      let T = parseFloat(document.getElementById("temp").value);
+      let RH = parseFloat(document.getElementById("rh").value);
+      let AH = parseFloat(document.getElementById("ah").value);
+      let Td = parseFloat(document.getElementById("td").value);
+      let VPD = parseFloat(document.getElementById("vpd").value);
 
-    function calcAT() {
-      let T = parseFloat(document.getElementById('temp').value);
-      let RH = parseFloat(document.getElementById('rh').value);
-      let AH = parseFloat(document.getElementById('ah').value);
-      let Td = parseFloat(document.getElementById('dewPoint').value);
-      let VPD = parseFloat(document.getElementById('vpd').value);
-      if ([T,RH,AH,Td,VPD].some(isNaN)) {
-        ['resultSilent','resultAuto','comfortSilent','comfortAuto','sleepSilent','sleepAuto','tipsSilent','tipsAuto'].forEach(id=>document.getElementById(id).innerText='');
+      if ([T, RH, AH, Td, VPD].some(isNaN)) {
+        document.getElementById("results").innerHTML = "请输入完整数据或上传图片识别";
         return;
       }
 
-      // 简化版 Steadman 体感温度 (AT)，两种风速
-      let e = (RH / 100) * 6.105 * Math.exp((17.27 * T) / (237.7 + T));
-      let AT_silent = T + 0.33 * e - 0.70 * 0.2 - 4.00; // 静音 0.2 m/s
-      let AT_auto   = T + 0.33 * e - 0.70 * 0.5 - 4.00; // 自动 0.5 m/s
+      let html = `<h3>计算结果</h3><div class="modes">`;
+      [0.2, 0.5].forEach((wind, i) => {
+        let AT = T - (wind * 2); // 简化体感温度
+        let comfort = judgeComfort(AT, RH, AH, Td, VPD);
+        html += `<div class="mode-box"><b>${i===0?"静音":"自动"}模式</b><br>
+                 体感温度: ${AT.toFixed(1)}<br>
+                 <span class="emoji">${comfort.emoji}</span><br>
+                 ${comfort.text}<br>
+                 <small>${comfort.clothes}</small></div>`;
+      });
+      html += "</div>";
+      document.getElementById("results").innerHTML = html;
+    }
 
-      function scoreAndAdvice(AT,RH,AH,Td,VPD){
-        // —— 优化后的多因子打分 ——
-        // 温度：25 为中心，±1 以内不扣分，之后每 0.5 扣 1.5 分
-        let temp_dev = Math.max(0, Math.abs(AT - 25) - 1);
-        let tempScore = Math.floor(temp_dev / 0.5) * 1.5;
+    function judgeComfort(AT, RH, AH, Td, VPD) {
+      let score = 0;
+      if (AT>=24 && AT<=26) score += 2; else if (AT>=22 && AT<=28) score += 1;
+      if (RH>=40 && RH<=60) score += 2; else if (RH>=30 && RH<=70) score += 1;
+      if (AH>=10 && AH<=18) score += 1;
+      if (Td>=10 && Td<=20) score += 1;
+      if (VPD>=0.8 && VPD<=1.6) score += 2; else if (VPD>=0.5 && VPD<=2.0) score += 1;
 
-        // 相对湿度：40-60 理想；35-40/60-65 轻微；30-35/65-70 中等；<30 或 >70 严重
-        let rhScore = 0;
-        if (RH < 40 || RH > 60) {
-          let d = RH < 40 ? 40 - RH : RH - 60;
-          if (d <= 5) rhScore = 1; else if (d <= 10) rhScore = 2; else rhScore = 3;
+      if (score>=7) return {emoji:"😊", text:"非常舒适", clothes:"睡觉穿薄睡衣即可"};
+      if (score>=5) return {emoji:"🙂", text:"基本舒适，稍加注意", clothes:"薄睡衣+薄被"};
+      if (AT<22 || Td<10 || RH<35) return {emoji:"🥶", text:"偏凉，注意保暖", clothes:"长袖睡衣+被子"};
+      if (AT>28 || Td>20 || RH>70) return {emoji:"🥵", text:"偏热，注意降温", clothes:"轻薄睡衣或短袖"};
+      return {emoji:"😐", text:"一般，需观察调整", clothes:"根据情况加减衣物"};
+    }
+
+    async function handleImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+        tessedit_char_whitelist: '0123456789.'
+      });
+
+      // 清理结果，只保留数字和小数点
+      let clean = text.replace(/[^0-9.\s]/g, " ").split(/\s+/).filter(v => v);
+
+      // 简单映射填入
+      inputs.forEach((id, idx) => {
+        if (clean[idx]) {
+          let val = parseFloat(clean[idx]);
+          // 范围检查
+          if (id==="temp" && (val<0 || val>40)) return;
+          if (id==="rh" && (val<0 || val>100)) return;
+          if (id==="ah" && (val<0 || val>30)) return;
+          if (id==="td" && (val<-10 || val>30)) return;
+          if (id==="vpd" && (val<0 || val>5)) return;
+          document.getElementById(id).value = val;
         }
+      });
 
-        // 绝对湿度：11-15 理想；9-11/15-17 轻微；7-9/17-19 中等；<7 或 >19 严重
-        let ahScore = 0;
-        if (AH < 11 || AH > 15) {
-          let d = AH < 11 ? 11 - AH : AH - 15;
-          if (d <= 2) ahScore = 1; else if (d <= 4) ahScore = 2; else ahScore = 3;
-        }
-
-        // 露点温度：12-18 理想；10-12/18-20 轻微；8-10/20-22 中等；<8 或 >22 严重
-        let tdScore = 0;
-        if (Td < 12 || Td > 18) {
-          let d = Td < 12 ? 12 - Td : Td - 18;
-          if (d <= 2) tdScore = 1; else if (d <= 4) tdScore = 2; else tdScore = 3;
-        }
-
-        // VPD：0.9-1.3 理想；0.8-0.9/1.3-1.6 轻微；<0.8 或 >1.6 中等偏重（2 分）；>2.0 严重（3 分）
-        let vpdScore = 0;
-        if (VPD < 0.9 || VPD > 1.3) {
-          if ((VPD >= 0.8 && VPD < 0.9) || (VPD > 1.3 && VPD <= 1.6)) vpdScore = 1;
-          else if (VPD < 0.8 || (VPD > 1.6 && VPD <= 2.0)) vpdScore = 2;
-          else if (VPD > 2.0) vpdScore = 3;
-        }
-
-        let total = tempScore + rhScore + ahScore + tdScore + vpdScore;
-
-        // 状态等级
-        let state, color, face;
-        if (total <= 1) { state = '舒适'; color = 'green'; face='😄'; }
-        else if (total <= 3) { state = '稍有不适'; color = 'goldenrod'; face='🙂'; }
-        else if (total <= 5) { state = '需调整'; color = 'orange'; face='😓'; }
-        else { state = AT >= 25 ? '偏热' : '偏冷'; color = AT >= 25 ? 'red' : 'dodgerblue'; face = AT >= 25 ? '🥵' : '🥶'; }
-
-        // 睡眠建议（基于 AT）
-        let sleep;
-        if (AT < 23) sleep = '长袖＋厚薄毯';
-        else if (AT < 24.5) sleep = '长袖＋薄毯';
-        else if (AT <= 26) sleep = '薄棉长袖/包屁衣';
-        else if (AT <= 27.5) sleep = '短袖＋薄睡袋';
-        else sleep = '短袖，风扇低档/加强通风';
-
-        // 生成简洁建议（挑 2 条最主要问题）
-        let issues = [];
-        if (tempScore>=1) issues.push(AT>25? '温度偏高，适当降温' : '温度偏低，适当增温');
-        if (rhScore>=1) issues.push(RH>60? '湿度偏高，注意除湿' : '空气偏干，适度加湿');
-        if (vpdScore>=1) issues.push(VPD>1.3? 'VPD偏大，体感更干' : 'VPD偏小，体感发闷');
-        if (ahScore>=2) issues.push(AH>15? '绝对湿度偏高' : '绝对湿度偏低');
-        if (tdScore>=2) issues.push(Td>18? '露点高，黏腻感强' : '露点低，易干燥');
-        let tips = issues.slice(0,2).join('；');
-
-        return {
-          text: `${state} ${face}`,
-          color,
-          sleep: `睡觉: ${sleep}`,
-          tips: tips ? `建议：${tips}` : ''
-        };
-      }
-
-      let s = scoreAndAdvice(AT_silent,RH,AH,Td,VPD);
-      let a = scoreAndAdvice(AT_auto,RH,AH,Td,VPD);
-
-      document.getElementById('resultSilent').innerText = `静音: ${AT_silent.toFixed(1)}`;
-      document.getElementById('comfortSilent').innerText = s.text; document.getElementById('comfortSilent').style.color = s.color;
-      document.getElementById('sleepSilent').innerText = s.sleep;
-      document.getElementById('tipsSilent').innerText = s.tips;
-
-      document.getElementById('resultAuto').innerText = `自动: ${AT_auto.toFixed(1)}`;
-      document.getElementById('comfortAuto').innerText = a.text; document.getElementById('comfortAuto').style.color = a.color;
-      document.getElementById('sleepAuto').innerText = a.sleep;
-      document.getElementById('tipsAuto').innerText = a.tips;
+      calculate();
     }
   </script>
 </body>

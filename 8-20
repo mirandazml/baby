@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宝宝体感温度 (混合模型最终版)</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 1rem; }
+    h2 { font-size: 1.5rem; text-align: center; color: #333; margin-bottom: 1rem; }
+    .container { max-width: 480px; margin: 0 auto; background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px
+ 12px rgba(0,0,0,0.1); }
+    label { display: block; margin-top: 0.8rem; font-size: 1rem; color: #555; }
+    input { padding: 0.5rem; width: 100%; font-size: 0.95rem; margin-top: 0.3rem; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; }
+    .results { display: flex; justify-content: space-between; margin-top: 1rem; gap: 1rem; }
+    .result-box { width: 48%; text-align: center; background: #fafafa; padding: 0.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;}
+    .result, .comfort, .sleep { margin-top: 0.3rem; font-size: 0.95rem; word-wrap: break-word; }
+    .result { font-weight: bold; }
+    .comfort { font-weight: bold; font-size: 1rem; min-height: 40px; display: flex; align-items: center; justify-content: center; }
+    .sleep { color: #6a1b9a; font-weight: bold; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>宝宝体感温度与舒适度 🌈</h2>
+
+    <label>上传图片: <input type="file" id="upload" accept="image/*"></label>
+
+    <label>温度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="temp" placeholder="请输入温度"></label>
+    <label>相对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="rh" placeholder="请输入相对湿度"></label>
+    <label>绝对湿度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="ah" placeholder="请输入绝对湿度"></label>
+    <label>露点温度: <input type="number" inputmode="decimal" pattern="[0-9]*" id="dewPoint" placeholder="请输入露点温度"></label>
+    <label>饱和水汽压差 (VPD): <input type="number" inputmode="decimal" pattern="[0-9]*" id="vpd" placeholder="请输入VPD"></label>
+
+    <div class="results">
+      <div class="result-box">
+        <div class="result" id="resultSilent"></div>
+        <div class="comfort" id="comfortSilent"></div>
+        <div class="sleep" id="sleepSilent"></div>
+      </div>
+      <div class="result-box">
+        <div class="result" id="resultAuto"></div>
+        <div class="comfort" id="comfortAuto"></div>
+        <div class="sleep" id="sleepAuto"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('upload').addEventListener('change', function(e){
+      if(e.target.files.length === 0) return;
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      const comfortBoxes = document.querySelectorAll('.comfort');
+      comfortBoxes.forEach(box => { box.innerText = '图片识别中...'; box.style.color = '#9e9e9e'; });
+      reader.onload = function(event){
+        Tesseract.recognize( event.target.result, 'eng+chi_sim', { logger: m => console.log(m) }
+        ).then(({ data: { text } }) => {
+          const extractValue = (pattern) => { const match = text.replace(/,/g, '.').match(pattern); return match ? match[1] : null; };
+          const patterns = {
+            temp: /温度[\s\S]*?(\d+\.\d+)/, rh: /相对湿度[\s\S]*?(\d{2,3})/, ah: /绝对湿度[\s\S]*?(\d+\.\d+)/,
+            dewPoint: /露点温度[\s\S]*?(\d+\.\d+)/, vpd: /(?:VPD|饱和水汽压差)[\s\S]*?(\d+\.\d+)/
+          };
+          const values = {
+            temp: extractValue(patterns.temp), rh: extractValue(patterns.rh), ah: extractValue(patterns.ah),
+            dewPoint: extractValue(patterns.dewPoint), vpd: extractValue(patterns.vpd)
+          };
+          if (Object.values(values).every(v => v !== null)) {
+            Object.keys(values).forEach(id => document.getElementById(id).value = values[id]);
+            calcAT();
+          } else {
+            console.error("未能提取所有值，提取结果:", values);
+            alert('图片识别失败！未能匹配所有五个项目。');
+            calcAT();
+          }
+        }).catch(err => { console.error(err); alert('OCR识别引擎出错。'); calcAT(); });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    ['temp','rh','ah','dewPoint','vpd'].forEach(id => {
+      document.getElementById(id).addEventListener('input', calcAT);
+    });
+    
+    // 舒适度判断函数 (保持不变)
+    const getATScore = (at) => {
+        if (at >= 24.0 && at <= 25.5) return { score: 2, text: '体感温和' };
+        if (at >= 22.5 && at <= 27.0) return { score: 1, text: '体感舒适' };
+        if (at >= 21.0 && at < 22.5) return { score: -1, text: '体感偏凉' };
+        if (at > 27.0 && at <= 28.5) return { score: -1, text: '体感偏热' };
+        if (at < 21.0) return { score: -2, text: '体感过冷' };
+        return { score: -2, text: '体感过热' };
+    };
+    const getDrynessScore = (rh, td, vpd) => {
+        if (rh < 35 || td < 10 || vpd > 1.8) return { score: -2, text: '非常干燥' };
+        if (rh < 45 || td < 12 || vpd > 1.6) return { score: -1, text: '有些干' };
+        return { score: 2, text: ''};
+    };
+    const getMugginessScore = (rh, td, vpd) => {
+        if (rh > 70 || td > 20 || vpd < 0.6) return { score: -2, text: '非常闷热' };
+        if (rh > 60 || td > 18 || vpd < 0.8) return { score: -1, text: '有些闷' };
+        return { score: 2, text: ''};
+    };
+    function judge(AT, RH, Td, VPD) {
+        const atResult = getATScore(AT);
+        const drynessResult = getDrynessScore(RH, Td, VPD);
+        const mugginessResult = getMugginessScore(RH, Td, VPD);
+        const worstScore = Math.min(atResult.score, drynessResult.score, mugginessResult.score);
+        let humidityText = drynessResult.score < 2 ? drynessResult.text : mugginessResult.text;
+        let finalText = atResult.text;
+        if (atResult.score === 2 && drynessResult.score === 2 && mugginessResult.score === 2) {
+            finalText = '黄金范围 😄 温湿度完美';
+        } else if (humidityText) {
+            finalText += (atResult.score > 0) ? ` 🙂 但${humidityText}` : ` 😟 且${humidityText}`;
+        }
+        let finalColor = '#4caf50', sleepSuggestion = '睡觉: 薄棉长袖/包屁衣';
+        switch (worstScore) {
+          case 1: finalColor = '#8bc34a'; sleepSuggestion = (AT > 25.5) ? '睡觉: 短袖/薄款包屁衣' : '睡觉: 长袖+包屁衣'; break;
+          case -1:
+            finalColor = '#ffc107';
+            if (atResult.score === -1) sleepSuggestion = atResult.text.includes('凉') ? '睡觉: 长袖+薄盖毯' : '睡觉: 短袖+薄睡袋';
+            else if (drynessResult.score === -1) sleepSuggestion = '睡觉: 盖好并开启加湿器';
+            else sleepSuggestion = '睡觉: 开空调除湿/通风';
+            break;
+          case -2:
+            finalColor = '#f44336';
+            if (atResult.score === -2) {
+                finalText += atResult.text.includes('冷') ? ' 🥶 务必保暖' : ' 🥵🥵 必须降温';
+                sleepSuggestion = atResult.text.includes('冷') ? '睡觉: 长袖+睡袋/盖毯' : '睡觉: 背心/尿不湿';
+            } else if (drynessResult.score === -2) {
+                finalText += ' 🏜️ 严重干燥'; sleepSuggestion = '睡觉: 立即加湿！';
+            } else {
+                finalText += ' ♨️ 严重闷热'; sleepSuggestion = '睡觉: 立即除湿降温！';
+            }
+            break;
+        }
+        return { text: finalText, sleep: sleepSuggestion, color: finalColor };
+    }
+
+    // --- 核心修改区域：采用全温区混合模型 ---
+    function calcAT() {
+      const T_C = parseFloat(document.getElementById('temp').value);
+      const RH = parseFloat(document.getElementById('rh').value);
+      const AH = parseFloat(document.getElementById('ah').value);
+      const Td_C = parseFloat(document.getElementById('dewPoint').value);
+      const VPD = parseFloat(document.getElementById('vpd').value);
+
+      if ([T_C, RH, AH, Td_C, VPD].some(isNaN)) {
+        const placeholderMessage = '...'; const instructionMessage = '请输入全部五项数据'; const instructionColor = '#9e9e9e';
+        ['Silent', 'Auto'].forEach(mode => {
+            document.getElementById(`result${mode}`).innerText = placeholderMessage;
+            const comfortEl = document.getElementById(`comfort${mode}`);
+            comfortEl.innerText = instructionMessage; comfortEl.style.color = instructionColor;
+            document.getElementById(`sleep${mode}`).innerText = '';
+        });
+        return;
+      }
+      
+      /**
+       * 全温区混合体感温度模型
+       * @param {number} T_C 摄氏温度
+       * @param {number} RH 相对湿度 (%)
+       * @returns {number} 基础体感温度 (摄氏度)
+       */
+      function calculateApparentTemp(T_C, RH) {
+          const T_F = T_C * 1.8 + 32;
+
+          // 模型1: 舒适/微凉区 (T < 25°C) - 基于水汽压的温和体感模型
+          const comfortableModel = () => {
+              const e = (RH / 100) * 6.105 * Math.exp((17.27 * T_C) / (237.7 + T_C));
+              const at = T_C + 0.348 * e - 4.25;
+              // 保证体感不低于实际温度
+              return Math.max(at, T_C);
+          };
+
+          // 模型2: 炎热区 (T > 27°C) - NOAA热指数模型
+          const heatIndexModel = () => {
+              let hi_F = -42.379 + 2.04901523*T_F + 10.14333127*RH - 0.22475541*T_F*RH - 6.83783e-3*T_F*T_F - 5.481717e-2*RH*RH + 1.22874e-3*T_F*T_F*RH + 8.5282e-4*T_F*RH*RH - 1.99e-6*T_F*T_F*RH*RH;
+              if (RH < 13 && T_F >= 80 && T_F <= 112) {
+                  const adj = ((13 - RH) / 4) * Math.sqrt((17 - Math.abs(T_F - 95)) / 17);
+                  hi_F -= adj;
+              } else if (RH > 85 && T_F >= 80 && T_F <= 87) {
+                  const adj = ((RH - 85) / 10) * ((87 - T_F) / 5);
+                  hi_F += adj;
+              }
+              const hi_C = (hi_F - 32) / 1.8;
+              return Math.max(hi_C, T_C);
+          };
+          
+          if (T_C < 25) {
+              return comfortableModel();
+          } else if (T_C > 27) {
+              return heatIndexModel();
+          } else {
+              // 过渡区 (25°C <= T <= 27°C): 平滑地从模型1过渡到模型2
+              const weight = (T_C - 25) / 2; // 权重从0变化到1
+              const val1 = comfortableModel();
+              const val2 = heatIndexModel();
+              return val1 * (1 - weight) + val2 * weight;
+          }
+      }
+
+      const baseAT_C = calculateApparentTemp(T_C, RH);
+      
+      // 风冷效应：风的降温效果与基础体感和实际温度的差值成比例
+      const tempDifference = baseAT_C - T_C;
+      const wind_cool_silent = 0.1 + tempDifference * 0.1; // 微风，基础降温+按比例降温
+      const wind_cool_auto = 0.2 + tempDifference * 0.2;   // 轻风
+      
+      const AT_silent = baseAT_C - wind_cool_silent;
+      const AT_auto = baseAT_C - wind_cool_auto;
+      
+      const s = judge(AT_silent, RH, Td_C, VPD);
+      const a = judge(AT_auto, RH, Td_C, VPD);
+
+      document.getElementById('resultSilent').innerText = `静音: ${AT_silent.toFixed(1)}℃`;
+      document.getElementById('comfortSilent').innerText = s.text; document.getElementById('comfortSilent').style.color = s.color;
+      document.getElementById('sleepSilent').innerText = s.sleep;
+
+      document.getElementById('resultAuto').innerText = `自动: ${AT_auto.toFixed(1)}℃`;
+      document.getElementById('comfortAuto').innerText = a.text; document.getElementById('comfortAuto').style.color = a.color;
+      document.getElementById('sleepAuto').innerText = a.sleep;
+    }
+
+    document.addEventListener('DOMContentLoaded', calcAT);
+  </script>
+</body>
+</html>

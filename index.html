@@ -8,20 +8,12 @@
   <style>
     body { font-family: sans-serif; margin: 1rem; background: #f9fafb; }
     h2 { text-align: center; }
-    .input-area, .result { 
-      margin: 1rem 0; padding: 1rem; 
-      background: white; border-radius: 12px; 
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
-    }
+    .input-area, .result { margin: 1rem 0; padding: 1rem; background: white; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
     input { width: 100%; padding: 0.6rem; margin: 0.4rem 0; font-size: 1rem; }
-    button { 
-      width: 100%; padding: 0.8rem; 
-      background: #4CAF50; color: white; border: none; 
-      border-radius: 10px; font-size: 1rem; cursor: pointer; 
-    }
+    button { width: 100%; padding: 0.8rem; background: #4CAF50; color: white; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; }
     button:hover { background: #45a049; }
-    .results { display: flex; justify-content: space-between; }
-    .card { flex: 1; margin: 0.5rem; padding: 0.8rem; border-radius: 12px; background: #f0fdf4; text-align: center; }
+    .results { display: flex; justify-content: space-between; flex-wrap: wrap; }
+    .card { flex: 1; min-width: 40%; margin: 0.5rem; padding: 0.8rem; border-radius: 12px; background: #f0fdf4; text-align: center; }
     .emoji { font-size: 2rem; }
     .upload { margin-top: 1rem; }
   </style>
@@ -100,7 +92,7 @@
     }
 
     function sleepAdvice(temp) {
-      if (temp < 20) return "长袖+睡袋";
+      if (temp < 20) return "长袖+厚睡袋";
       if (temp < 24) return "长袖薄睡袋";
       if (temp < 27) return "短袖睡袋";
       return "轻薄短袖";
@@ -108,23 +100,40 @@
 
     // ---- OCR 识别并提取 ----
     async function handleImage(file) {
-      const { data: { text } } = await Tesseract.recognize(file, 'chi_sim+eng', {
-        tessedit_char_whitelist: '0123456789.%'
-      });
+      const { data: { text } } = await Tesseract.recognize(file, 'chi_sim+eng');
+      console.log("OCR原始结果:", text);
 
-      console.log("OCR结果:", text);
+      // 统一去掉单位符号
+      let cleanText = text.replace(/[℃%]/g, "").replace(/\s+/g, " ");
 
-      function extractValue(keyword) {
-        const regex = new RegExp(keyword + '\\s*([0-9]+\\.?[0-9]*)');
-        const match = text.match(regex);
-        return match ? parseFloat(match[1]) : '';
+      // 匹配关键词
+      function extractValue(keywords) {
+        for (let k of keywords) {
+          const regex = new RegExp(k + "\\s*([0-9]+\\.?[0-9]*)");
+          const match = cleanText.match(regex);
+          if (match) return parseFloat(match[1]);
+        }
+        return null;
       }
 
-      document.getElementById("temp").value = extractValue("温度");
-      document.getElementById("rh").value = extractValue("相对湿度");
-      document.getElementById("ah").value = extractValue("绝对湿度");
-      document.getElementById("dew").value = extractValue("露点温度");
-      document.getElementById("vpd").value = extractValue("VPD");
+      // 填充输入框
+      document.getElementById("temp").value = extractValue(["温度","气温"]) || "";
+      document.getElementById("rh").value   = extractValue(["相对湿度","湿度"]) || "";
+      document.getElementById("ah").value   = extractValue(["绝对湿度"]) || "";
+      document.getElementById("dew").value  = extractValue(["露点","露点温度"]) || "";
+      document.getElementById("vpd").value  = extractValue(["VPD","饱和水汽压差"]) || "";
+
+      // 如果关键词都没找到，就兜底提取所有数字
+      if (!document.getElementById("temp").value) {
+        const nums = cleanText.match(/[0-9]+\.?[0-9]*/g) || [];
+        if (nums.length >= 5) {
+          [document.getElementById("temp").value,
+           document.getElementById("rh").value,
+           document.getElementById("ah").value,
+           document.getElementById("dew").value,
+           document.getElementById("vpd").value] = nums;
+        }
+      }
 
       calculate();
     }

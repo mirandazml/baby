@@ -1,131 +1,100 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <title>体感温度与舒适度计算</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        label { display: block; margin-top: 10px; }
-        input { width: 120px; }
-        #result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
-    </style>
+  <meta charset="UTF-8">
+  <title>体感温度与舒适度计算</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 10px; }
+    label { display: block; margin-top: 8px; font-size: 14px; }
+    input { width: 100%; padding: 6px; margin-top: 4px; font-size: 16px; box-sizing: border-box; }
+    button { margin-top: 12px; padding: 10px; width: 100%; font-size: 16px; }
+    #result { margin-top: 20px; padding: 12px; border: 1px solid #ccc; font-size: 16px; }
+    /* 手机适配 */
+    @media (max-width: 600px) {
+      body { margin: 5px; font-size: 16px; }
+      input, button { font-size: 18px; }
+    }
+    pre { white-space: pre-wrap; word-wrap: break-word; }
+  </style>
 </head>
 <body>
-    <h2>体感温度与舒适度计算</h2>
+  <h2>体感温度与舒适度计算2</h2>
 
-    <label>室内温度 (℃): <input type="number" id="temperature"></label>
-    <label>相对湿度 (%): <input type="number" id="humidity"></label>
-    <label>绝对湿度 (g/m³): <input type="number" id="absHumidity"></label>
-    <label>露点温度 (℃): <input type="number" id="dewPoint"></label>
-    <label>VPD (kPa): <input type="number" id="vpd"></label>
-    <label>风速 (m/s): <input type="number" id="windSpeed" value="0.2"></label>
+  <label>室内温度 (℃): <input type="number" id="temperature"></label>
+  <label>相对湿度 (%): <input type="number" id="humidity"></label>
+  <label>绝对湿度 (g/m³): <input type="number" id="absHumidity"></label>
+  <label>露点温度 (℃): <input type="number" id="dewPoint"></label>
+  <label>VPD (kPa): <input type="number" id="vpd"></label>
+  <label>风速 (m/s): <input type="number" id="windSpeed" value="0.2"></label>
 
-    <button onclick="calcAT()">计算</button>
-    <input type="file" id="imageInput" accept="image/*" onchange="extractText()">
+  <button onclick="calcAT()">计算</button>
+  <input type="file" id="imageInput" accept="image/*" onchange="extractText()">
 
-    <div id="result"></div>
+  <div id="result"></div>
 
-    <!-- OCR 结果预览区 -->
-    <div style="margin-top:20px; padding:10px; border:1px solid #ccc;">
-        <h3>OCR结果预览</h3>
-        <p><b>原始识别文本:</b></p>
-        <pre id="ocrRaw" style="background:#f8f8f8; padding:5px;"></pre>
-        <p><b>清理后的文本:</b></p>
-        <pre id="ocrClean" style="background:#f0f0f0; padding:5px;"></pre>
-        <p><b>提取到的数值:</b></p>
-        <pre id="ocrValues" style="background:#eef; padding:5px;"></pre>
-    </div>
+  <div style="margin-top:20px; padding:10px; border:1px solid #ccc;">
+    <h3>OCR结果预览</h3>
+    <p><b>原始识别文本:</b></p>
+    <pre id="ocrRaw"></pre>
+    <p><b>提取到的数值 (按顺序填充):</b></p>
+    <pre id="ocrValues"></pre>
+  </div>
 
-    <script>
-        function calcAT() {
-            const T = parseFloat(document.getElementById("temperature").value);
-            const RH = parseFloat(document.getElementById("humidity").value);
-            const AH = parseFloat(document.getElementById("absHumidity").value);
-            const DP = parseFloat(document.getElementById("dewPoint").value);
-            const VPD = parseFloat(document.getElementById("vpd").value);
-            const v = parseFloat(document.getElementById("windSpeed").value);
+  <script>
+    function calcAT() {
+      const T = parseFloat(document.getElementById("temperature").value);
+      const RH = parseFloat(document.getElementById("humidity").value);
+      const AH = parseFloat(document.getElementById("absHumidity").value);
+      const DP = parseFloat(document.getElementById("dewPoint").value);
+      const VPD = parseFloat(document.getElementById("vpd").value);
+      const v = parseFloat(document.getElementById("windSpeed").value);
 
-            if (isNaN(T) || isNaN(RH) || isNaN(AH) || isNaN(DP) || isNaN(VPD)) {
-                document.getElementById("result").innerText = "请输入完整数据";
-                return;
-            }
+      if ([T,RH,AH,DP,VPD].some(isNaN)) {
+        document.getElementById("result").innerText = "请输入完整数据";
+        return;
+      }
 
-            // 计算体感温度
-            let AT = T + 0.33 * AH - 0.70 * v - 4.0 + 0.2 * (T - DP) - 0.5 * VPD;
+      let AT = T + 0.33 * AH - 0.70 * v - 4.0 + 0.2 * (T - DP) - 0.5 * VPD;
 
-            // 舒适度判断
-            let comfort = "";
-            if (AT >= 20 && AT <= 27 && RH >= 40 && RH <= 60 && VPD >= 0.8 && VPD <= 1.6) {
-                comfort = "舒适";
-            } else if (AT < 20) {
-                comfort = "偏冷";
-            } else if (AT > 27) {
-                comfort = "偏热";
-            } else if (RH < 40) {
-                comfort = "干燥";
-            } else if (RH > 60) {
-                comfort = "潮湿";
-            } else if (VPD < 0.8) {
-                comfort = "湿度过高";
-            } else if (VPD > 1.6) {
-                comfort = "湿度不足";
-            }
+      let comfort = "";
+      if (AT >= 20 && AT <= 27 && RH >= 40 && RH <= 60 && VPD >= 0.8 && VPD <= 1.6) {
+        comfort = "舒适";
+      } else if (AT < 20) comfort = "偏冷";
+      else if (AT > 27) comfort = "偏热";
+      else if (RH < 40) comfort = "干燥";
+      else if (RH > 60) comfort = "潮湿";
+      else if (VPD < 0.8) comfort = "湿度过高";
+      else if (VPD > 1.6) comfort = "湿度不足";
 
-            document.getElementById("result").innerText =
-                `体感温度: ${AT.toFixed(2)}℃\n舒适度: ${comfort}`;
-        }
+      document.getElementById("result").innerText =
+        `体感温度: ${AT.toFixed(2)}℃\n舒适度: ${comfort}`;
+    }
 
-        async function extractText() {
-            const file = document.getElementById('imageInput').files[0];
-            if (!file) {
-                alert("请先上传图片！");
-                return;
-            }
+    async function extractText() {
+      const file = document.getElementById('imageInput').files[0];
+      if (!file) { alert("请先上传图片！"); return; }
 
-            const { createWorker } = Tesseract;
-            const worker = await createWorker('chi_sim');
-            const { data: { text } } = await worker.recognize(file);
+      const { createWorker } = Tesseract;
+      const worker = await createWorker('chi_sim');
+      const { data: { text } } = await worker.recognize(file);
 
-            // 原始OCR结果
-            document.getElementById("ocrRaw").innerText = text;
+      document.getElementById("ocrRaw").innerText = text;
 
-            // 清理OCR文本
-            let cleanText = text
-                .replace(/,/g, ".")
-                .replace(/℃|°C|%|％|g\/m³|kPa/g, "")
-                .replace(/\s+/g, " ")
-                .trim();
+      // 提取所有数字
+      let numbers = text.replace(/,/g,".").match(/[0-9]+(\.[0-9]+)?/g) || [];
+      document.getElementById("ocrValues").innerText = numbers.join(", ");
 
-            document.getElementById("ocrClean").innerText = cleanText;
-
-            // 提取数值
-            const extractValue = (pattern) => {
-                const match = cleanText.match(pattern);
-                return match ? match[1] : null;
-            };
-
-            const temp = extractValue(/温度\s*([0-9.]+)/);
-            const rh = extractValue(/相对湿度\s*([0-9.]+)/);
-            const ah = extractValue(/绝对湿度\s*([0-9.]+)/);
-            const dew = extractValue(/露点温度\s*([0-9.]+)/);
-            const vpd = extractValue(/VPD.*?([0-9.]+)/);
-
-            if (temp) document.getElementById("temperature").value = temp;
-            if (rh) document.getElementById("humidity").value = rh;
-            if (ah) document.getElementById("absHumidity").value = ah;
-            if (dew) document.getElementById("dewPoint").value = dew;
-            if (vpd) document.getElementById("vpd").value = vpd;
-
-            // 预览提取到的数值
-            document.getElementById("ocrValues").innerText = `
-温度: ${temp || "未识别"}
-相对湿度: ${rh || "未识别"}
-绝对湿度: ${ah || "未识别"}
-露点温度: ${dew || "未识别"}
-VPD: ${vpd || "未识别"}
-            `;
-        }
-    </script>
+      // 按顺序填充：温度 → 相对湿度 → 绝对湿度 → 露点温度 → VPD
+      if (numbers.length >= 5) {
+        document.getElementById("temperature").value = numbers[0];
+        document.getElementById("humidity").value = numbers[1];
+        document.getElementById("absHumidity").value = numbers[2];
+        document.getElementById("dewPoint").value = numbers[3];
+        document.getElementById("vpd").value = numbers[4];
+        calcAT(); // 自动计算
+      }
+    }
+  </script>
 </body>
 </html>
